@@ -76,7 +76,8 @@ async function main(): Promise<void> {
                 console.log(`[Migrate] [${item.aplicada ? "✓" : " "}] ${item.versao}`);
         }
     } finally {
-        await client.end();
+        // Não deixa um erro no encerramento da conexão mascarar o erro real da migração.
+        await client.end().catch(() => {});
     }
 }
 

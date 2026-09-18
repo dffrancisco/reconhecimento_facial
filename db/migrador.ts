@@ -50,6 +50,14 @@ export function criarArquivo(dir: string, nome: string, alvo: tAlvo, agora = new
     return arquivo;
 }
 
+/** Mesma mensagem em prepararControle e situacao — extraída para não duplicar. */
+function checarPapelDoBanco(papelBanco: string, papel: tPapel): void {
+    if (papelBanco !== papel)
+        throw new Error(
+            `Este banco pertence ao papel "${papelBanco}", não a "${papel}". Confira PAPEL e POSTGRES_DB.`
+        );
+}
+
 export async function prepararControle(client: Client, papel: tPapel): Promise<void> {
     await client.query(`
         CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -65,10 +73,7 @@ export async function prepararControle(client: Client, papel: tPapel): Promise<v
     await client.query("INSERT INTO schema_papel (papel) VALUES ($1) ON CONFLICT (unica) DO NOTHING", [papel]);
 
     const { rows } = await client.query<{ papel: string }>("SELECT papel FROM schema_papel");
-    if (rows[0].papel !== papel)
-        throw new Error(
-            `Este banco pertence ao papel "${rows[0].papel}", não a "${papel}". Confira PAPEL e POSTGRES_DB.`
-        );
+    checarPapelDoBanco(rows[0].papel, papel);
 }
 
 async function versoesAplicadas(client: Client): Promise<string[]> {
@@ -156,8 +161,20 @@ export async function situacao(
     arquivos: iArquivoMigracao[],
     papel: tPapel
 ): Promise<{ versao: string; aplicada: boolean }[]> {
-    await prepararControle(client, papel);
-    const aplicadas = new Set(await versoesAplicadas(client));
+    // status é somente-leitura: não cria as tabelas de controle nem grava o papel do banco.
+    const { rows: papelReg } = await client.query<{ reg: string | null }>(
+        "SELECT to_regclass('public.schema_papel') AS reg"
+    );
+    if (papelReg[0].reg) {
+        const { rows } = await client.query<{ papel: string }>("SELECT papel FROM schema_papel");
+        checarPapelDoBanco(rows[0].papel, papel);
+    }
+
+    const { rows: migracoesReg } = await client.query<{ reg: string | null }>(
+        "SELECT to_regclass('public.schema_migrations') AS reg"
+    );
+    const aplicadas = migracoesReg[0].reg ? new Set(await versoesAplicadas(client)) : new Set<string>();
+
     return arquivos
         .filter((a) => deveRodar(ler(a).alvo, papel))
         .map((a) => ({ versao: a.versao, aplicada: aplicadas.has(a.versao) }));
