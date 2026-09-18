@@ -1,4 +1,4 @@
-import { test, describe, before, after, beforeEach } from "node:test";
+import { test, describe, before, after, beforeEach, mock } from "node:test";
 import assert from "node:assert";
 import express, { NextFunction, Request, Response } from "express";
 import fileUpload from "express-fileupload";
@@ -45,6 +45,18 @@ class RotaFalsa {
 
     async comStatus() {
         return { status: 202, data: { aceito: true } };
+    }
+
+    async comData() {
+        return { data: { ok: true } };
+    }
+
+    async comDetalheSensivel() {
+        const erro = new Error('duplicate key value violates unique constraint "favorecido_telefone_key"') as Error & {
+            detail?: string;
+        };
+        erro.detail = "Key (telefone)=(+5511999998888) already exists.";
+        throw erro;
     }
 }
 
@@ -145,6 +157,32 @@ describe("per", () => {
 
         assert.strictEqual(r.status, 202);
         assert.deepStrictEqual(r.corpo, { aceito: true });
+    });
+
+    test("retorno só com data (sem status numérico) envia rs.data", async () => {
+        const r = await chamar("/rota", { call: "comData" });
+
+        assert.strictEqual(r.status, 200);
+        assert.deepStrictEqual(r.corpo, { ok: true });
+    });
+
+    test("erro com detail sensível: resposta genérica e log sem o dado pessoal", async () => {
+        const logs: unknown[][] = [];
+        const consoleErrorMock = mock.method(console, "error", (...args: unknown[]) => {
+            logs.push(args);
+        });
+
+        try {
+            const r = await chamar("/rota", { call: "comDetalheSensivel" });
+
+            assert.strictEqual(r.status, 500);
+            assert.deepStrictEqual(r.corpo, { msg: "Erro ao processar sua solicitação" });
+        } finally {
+            consoleErrorMock.mock.restore();
+        }
+
+        const textoLogado = JSON.stringify(logs);
+        assert.ok(!textoLogado.includes("+5511999998888"), "telefone não deveria aparecer no log");
     });
 
     for (const call of [undefined, "init", "constructor", "toString", "conexao", "naoExiste", "_privado"]) {

@@ -140,6 +140,12 @@ export default class ConexaoPostgres {
         return true;
     }
 
+    // Marca a conexão como falha para que `close()` faça rollback em vez de commit —
+    // usado quando o erro não veio de uma query (ex.: `ErroTratado` lançado pela ctrl).
+    marcarErro(): void {
+        this.comErro = true;
+    }
+
     async close(): Promise<boolean> {
         let erroTransacao: Error | undefined;
         try {
@@ -167,11 +173,25 @@ export default class ConexaoPostgres {
             return await obterPool().query<T>(text, values);
         } catch (erro) {
             this.comErro = true;
-            // Sem os parâmetros: podem conter telefone ou embedding.
-            const erroFormatado = erro instanceof Error ? erro : new Error(String(erro));
-            console.error("[Postgres] Erro na query:", erroFormatado.message);
+
+            const bruto = erro as { code?: string; constraint?: string; message?: string };
+            const codigo = bruto.code;
+            const constraint = bruto.constraint;
+
+            // Nunca loga os parâmetros nem o `detail` do pg (ex.: "Key (telefone)=(+55...) already
+            // exists."). Em 22P02 (entrada inválida) até a `message` original carrega o valor.
+            console.error("[Postgres] Erro na query:", {
+                code: codigo,
+                constraint,
+                message: codigo === "22P02" ? undefined : bruto.message,
+            });
             console.error("[Postgres] SQL:", sql);
-            throw erro;
+
+            const mensagem = codigo === "22P02" ? "Valor inválido para o tipo da coluna" : (bruto.message ?? String(erro));
+            const erroLimpo = new Error(mensagem) as Error & { code?: string; constraint?: string };
+            if (codigo) erroLimpo.code = codigo;
+            if (constraint) erroLimpo.constraint = constraint;
+            throw erroLimpo;
         }
     }
 

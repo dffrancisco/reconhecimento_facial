@@ -21,7 +21,7 @@ O Postgres de dev tem dois bancos, `fotos_estacao` e `fotos_vps`, em `127.0.0.1:
 
 ```bash
 npm test                 # funções puras, sem banco
-npm run test:integracao  # precisa do Postgres e do Redis de dev de pé
+npm run test:integracao  # precisa do Postgres de dev de pé
 npm run typecheck
 ```
 

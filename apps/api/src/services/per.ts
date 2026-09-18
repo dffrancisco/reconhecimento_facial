@@ -6,7 +6,7 @@ export interface iContexto {
 }
 
 export interface iRota {
-    conexao?: { close(): Promise<unknown> };
+    conexao?: { close(): Promise<unknown>; marcarErro?(): void };
     init(): Promise<void>;
 }
 
@@ -24,10 +24,16 @@ function responder(res: Response, rs: unknown): void {
         res.send([]);
         return;
     }
-    if (typeof rs === "object" && "data" in rs && typeof (rs as { status?: unknown }).status === "number") {
-        const { status, data } = rs as { status: number; data: unknown };
-        res.status(status).send(data);
-        return;
+    if (typeof rs === "object") {
+        const obj = rs as { status?: unknown; data?: unknown };
+        if (typeof obj.status === "number") {
+            res.status(obj.status).send(obj.data);
+            return;
+        }
+        if ("data" in obj) {
+            res.send(obj.data);
+            return;
+        }
     }
     res.send(rs);
 }
@@ -51,11 +57,27 @@ export default async function per(
         const metodo = (rota as unknown as Record<string, (req: Request) => Promise<unknown>>)[call];
         responder(res, await metodo.call(rota, req));
     } catch (erro) {
+        // Marca a conexão como falha antes do `finally` fechá-la: sem isso, um erro lançado
+        // dentro de uma transação (openTransaction) seria seguido de COMMIT em vez de rollback.
+        rota?.conexao?.marcarErro?.();
+
         if (erro instanceof ErroTratado) {
             res.status(422).send({ msg: erro.message });
             return;
         }
-        console.error(`[per] Erro em ${req.baseUrl}${req.path} (${call}):`, erro);
+
+        // Nunca loga o objeto de erro inteiro: erros do pg carregam `detail` (pode ter telefone)
+        // e, em SQLSTATE 22P02, a própria `message` pode carregar o valor (ex.: embedding).
+        const detalhes =
+            erro instanceof Error
+                ? {
+                      name: erro.name,
+                      message: erro.message,
+                      code: (erro as { code?: unknown }).code,
+                      stack: erro.stack,
+                  }
+                : { message: String(erro) };
+        console.error(`[per] Erro em ${req.baseUrl}${req.path} (${call}):`, detalhes);
         res.status(500).send({ msg: "Erro ao processar sua solicitação" });
     } finally {
         if (rota?.conexao) {

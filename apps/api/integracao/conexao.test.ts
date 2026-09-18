@@ -1,10 +1,12 @@
-import { test, describe, before, beforeEach, after } from "node:test";
+import { test, describe, before, beforeEach, after, mock } from "node:test";
 import assert from "node:assert";
 import { iniciarConfig } from "../src/services/config";
 import ConexaoPostgres, { fecharBanco } from "../src/db/conexaoPostgres";
 import { envTeste } from "./ambiente";
 
 const TABELA = `teste_conexao_${process.pid}`;
+const TABELA_UNIQUE = `teste_conexao_unique_${process.pid}`;
+const TELEFONE = "+5511999998888";
 
 async function executar(sql: string): Promise<void> {
     const c = new ConexaoPostgres();
@@ -37,6 +39,12 @@ async function transacoesPendentes(): Promise<number> {
 before(async () => {
     iniciarConfig(envTeste("vps"));
     await executar(`CREATE TABLE IF NOT EXISTS ${TABELA} (x int)`);
+    await executar(`CREATE TABLE IF NOT EXISTS ${TABELA_UNIQUE} (telefone varchar(20) UNIQUE)`);
+
+    const c = new ConexaoPostgres();
+    await c.open();
+    await c.queryParam(`INSERT INTO ${TABELA_UNIQUE} (telefone) VALUES (?)`, [TELEFONE]);
+    await c.close();
 });
 
 beforeEach(async () => {
@@ -46,6 +54,7 @@ beforeEach(async () => {
 
 after(async () => {
     await executar(`DROP TABLE IF EXISTS ${TABELA}`);
+    await executar(`DROP TABLE IF EXISTS ${TABELA_UNIQUE}`);
     await fecharBanco();
 });
 
@@ -96,5 +105,32 @@ describe("ConexaoPostgres com banco real", () => {
         await c.close();
 
         assert.deepStrictEqual(linha, { t: "o que houve?", n: 7 });
+    });
+
+    test("violação de UNIQUE com telefone: erro tem code, mas nem ele nem o log carregam o valor", async () => {
+        const logs: unknown[][] = [];
+        const consoleErrorMock = mock.method(console, "error", (...args: unknown[]) => {
+            logs.push(args);
+        });
+
+        const c = new ConexaoPostgres();
+        await c.open();
+        try {
+            await assert.rejects(
+                c.queryParam(`INSERT INTO ${TABELA_UNIQUE} (telefone) VALUES (?)`, [TELEFONE]),
+                (erro: unknown) => {
+                    assert.ok(erro instanceof Error);
+                    assert.strictEqual((erro as { code?: string }).code, "23505");
+                    assert.strictEqual((erro as { detail?: string }).detail, undefined);
+                    assert.ok(!JSON.stringify(erro, Object.getOwnPropertyNames(erro)).includes(TELEFONE));
+                    return true;
+                }
+            );
+        } finally {
+            await c.close();
+        }
+
+        const textoLogado = JSON.stringify(logs);
+        assert.ok(!textoLogado.includes(TELEFONE), "telefone não deveria aparecer no log");
     });
 });

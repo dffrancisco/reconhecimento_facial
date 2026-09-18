@@ -22,7 +22,13 @@ export default class StartApp {
         this.app = express();
         this.httpServer = http.createServer(this.app);
 
-        this.app.use(fileUpload({ limits: { fileSize: 25 * 1024 * 1024 } }));
+        this.app.use(
+            fileUpload({
+                abortOnLimit: true,
+                limits: { fileSize: 25 * 1024 * 1024, files: 5 },
+                responseOnLimit: "Arquivo grande demais",
+            })
+        );
         this.app.use(express.json({ limit: "1mb" }));
         this.app.use(express.urlencoded({ limit: "1mb", extended: true }));
 
@@ -52,11 +58,19 @@ export default class StartApp {
             console.log(`[Api] Banco ${config.postgres.host}:${config.postgres.porta}/${config.postgres.banco}`);
         });
 
+        let encerrando = false;
         const encerrar = (evento: string) => () => {
+            if (encerrando) return;
+            encerrando = true;
             console.log(`[Api] ${evento} recebido, encerrando...`);
             this.httpServer.close(async () => {
-                await fecharBanco();
-                process.exit(0);
+                try {
+                    await fecharBanco();
+                } catch (erro) {
+                    console.error("[Api] Erro ao fechar o banco:", erro instanceof Error ? erro.message : erro);
+                } finally {
+                    process.exit(0);
+                }
             });
         };
         process.on("SIGINT", encerrar("SIGINT"));
