@@ -176,43 +176,35 @@ export default class ConexaoPostgres {
     }
 
     private async liberar(erro?: Error): Promise<void> {
-        if (this.client) {
-            if (erro) {
-                // Erro ao fazer commit/rollback — libera a conexão como danificada, node-postgres a destrói.
-                try {
-                    this.client.release(erro);
-                } catch (erroRelease) {
-                    console.error("[Postgres] Erro ao devolver a conexão ao pool:", erroRelease);
-                }
-            } else if (this.emTransacao) {
-                // Transação não foi fechada explicitamente — faz rollback para não danificar a conexão do pool.
-                try {
-                    await this.client.query("ROLLBACK");
-                } catch (erroRaw) {
-                    const erroRollback = erroRaw instanceof Error ? erroRaw : new Error(String(erroRaw));
-                    console.error("[Postgres] Erro ao fazer rollback na transação:", erroRollback.message);
-                    // Libera a conexão como danificada, node-postgres a destrói.
-                    try {
-                        this.client.release(erroRollback);
-                    } catch (erroRelease) {
-                        console.error("[Postgres] Erro ao devolver a conexão ao pool:", erroRelease);
-                    }
-                    this.client = null;
-                    this.aberta = false;
-                    this.emTransacao = false;
-                    return;
-                }
-            }
-
-            if (this.client) {
-                try {
-                    this.client.release();
-                } catch (erroRelease) {
-                    console.error("[Postgres] Erro ao devolver a conexão ao pool:", erroRelease);
-                }
-            }
-            this.client = null;
+        if (!this.client) {
+            this.aberta = false;
+            this.emTransacao = false;
+            return;
         }
+
+        let erroParaDestruir: Error | undefined = erro;
+
+        if (!erro && this.emTransacao) {
+            // Transação não foi fechada explicitamente — faz rollback para não danificar a conexão do pool.
+            try {
+                await this.client.query("ROLLBACK");
+            } catch (erroRaw) {
+                erroParaDestruir = erroRaw instanceof Error ? erroRaw : new Error(String(erroRaw));
+                console.error("[Postgres] Erro ao fazer rollback na transação:", erroParaDestruir.message);
+            }
+        }
+
+        try {
+            if (erroParaDestruir) {
+                this.client.release(erroParaDestruir);
+            } else {
+                this.client.release();
+            }
+        } catch (erroRelease) {
+            console.error("[Postgres] Erro ao devolver a conexão ao pool:", erroRelease);
+        }
+
+        this.client = null;
         this.aberta = false;
         this.emTransacao = false;
     }
