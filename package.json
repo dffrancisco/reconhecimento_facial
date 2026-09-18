@@ -5,11 +5,14 @@
         "node": ">=22"
     },
     "workspaces": [
-        "apps/api"
+        "apps/api",
+        "db"
     ],
     "scripts": {
         "typecheck": "npm run typecheck --workspaces --if-present",
         "test": "npm run test --workspaces --if-present",
-        "test:integracao": "npm run test:integracao --workspaces --if-present"
+        "test:integracao": "npm run test:integracao --workspaces --if-present",
+        "migrate": "npm run migrate -w db --",
+        "migrate:dev": "PAPEL=estacao POSTGRES_DB=fotos_estacao npm run migrate -w db -- up && PAPEL=vps POSTGRES_DB=fotos_vps npm run migrate -w db -- up"
     }
 }

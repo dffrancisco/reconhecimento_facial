@@ -1,0 +1,21 @@
+{
+    "name": "@fotos/db",
+    "version": "0.1.0",
+    "private": true,
+    "scripts": {
+        "migrate": "tsx migrate.ts",
+        "typecheck": "tsc -p tsconfig.json",
+        "test": "tsx --test $(find . -maxdepth 1 -name '*.test.ts')",
+        "test:integracao": "tsx --test --test-concurrency=1 $(find integracao -name '*.test.ts')"
+    },
+    "dependencies": {
+        "dotenv": "^17.4.2",
+        "pg": "^8.23.0",
+        "tsx": "^4.23.13"
+    },
+    "devDependencies": {
+        "@types/node": "^22.20.3",
+        "@types/pg": "^8.23.1",
+        "typescript": "~5.9"
+    }
+}
