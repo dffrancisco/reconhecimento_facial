@@ -51,15 +51,11 @@
 │   │   │   ├── config.ts             # carregarConfig (pura) + objeto único `config`
 │   │   │   ├── erro.ts               # ErroTratado
 │   │   │   ├── per.ts                # despachante RPC
-│   │   │   ├── servidor.ts           # criarApp
-│   │   │   ├── saude.ts              # GET /test
-│   │   │   └── redis.ts
+│   │   │   └── server.ts             # class StartApp (padrão erp_server)
 │   │   ├── db/conexaoPostgres.ts     # pool único + ConexaoPostgres + parseParams
 │   │   ├── routes/
-│   │   │   ├── areas.ts              # papel → áreas
 │   │   │   └── fotografoRoute.ts painelRoute.ts participanteRoute.ts
 │   │   │       anfitriaoRoute.ts adminRoute.ts estacaoRoute.ts
-│   │   └── _template/                # módulo modelo: route/ctrl/sql/i/.http
 │   └── integracao/                   # testes com Postgres e Redis reais
 ├── db/
 │   ├── package.json  tsconfig.json  Dockerfile
@@ -994,463 +990,179 @@ git commit -m "feat(api): despachante RPC per com lista de chamadas permitidas" 
 
 ---
 
-### Task 4: Servidor, áreas por papel, `/test`, entrada e módulo modelo
+### Task 4: Servidor no padrão StartApp do erp_server
 
-**Files:**
-- Create: `apps/api/src/services/servidor.ts`, `apps/api/src/services/saude.ts`, `apps/api/src/services/redis.ts`
-- Create: `apps/api/src/routes/areas.ts` e as seis rotas de área
-- Create: `apps/api/src/loadEnv.ts`, `apps/api/src/index.ts`
-- Create: `apps/api/src/_template/route._template.ts`, `ctrl._template.ts`, `sql._template.ts`, `i._template.ts`, `_template.http`
-- Test: `apps/api/src/routes/areas.test.ts`, `apps/api/src/services/servidor.test.ts`
+> Reescrita depois da correção do usuário: a primeira versão (commit 45bd538) fugiu do padrão `.claude/skills/padrao-backend`.
 
-**Interfaces:**
-- Consumes: `config`, `iniciarConfig` (Task 1); `ConexaoPostgres`, `fecharBanco` (Task 2); `per`, `iContexto` (Task 3)
-- Produces:
-  - `interface iArea { caminho: string; router: Router }`
-  - `areasDoPapel(papel: tPapel): iArea[]` — estação: `fotografo`, `painel`; VPS: `participante`, `anfitriao`, `admin`, `estacao`
-  - `criarApp(areas?: iArea[]): express.Express` — padrão `areasDoPapel(config.papel)`; monta cada área em `/api/<caminho>`
-  - `redis(): Redis`, `fecharRedis(): Promise<void>`
-  - `verificarSaude(): Promise<iSaude>` com `iSaude { ok: boolean; papel: tPapel; versao: string; banco: boolean; redis: boolean }`
-  - Módulo `_template` com `getAgora` → `{ agora: Date }` e `ecoar { texto }` → `{ texto: string }` (texto em maiúsculas)
-- Convenção para as próximas fases: um módulo `X` da área `admin` fica em `src/_ADMIN/X/` e é registrado em `routes/adminRoute.ts` com `router.post("/X", routeX)`.
+O usuário recusou a versão anterior da Task 4 (commit 45bd538): ela fugiu do padrão de backend dele. Refaça o servidor espelhando o `erp_server` e remova o que não existe nesse padrão.
 
-- [ ] **Step 1: Escrever os testes**
+Padrão de referência (leia antes):
+- `/mnt/nvme/PROJETOS/reconhecimento_facial/.claude/skills/padrao-backend/SKILL.md` (a skill do usuário; o que ela fala de multi-tenant, `id_empresa`, `v_produto`, menu no `helper` e `prepareSql` é do ERP e NÃO se aplica aqui)
+- `/home/alves/PROJETOS/WAYAP/erp_server/src/index.ts`
+- `/home/alves/PROJETOS/WAYAP/erp_server/src/services/server.ts` (classe `StartApp`: constructor monta express/http/middlewares; rotas por `this.app.use("/<area>", <area>Route)`; `/test` simples)
+- `/home/alves/PROJETOS/WAYAP/erp_server/src/routes/podiumRoute.ts`
 
-`apps/api/src/routes/areas.test.ts`:
+Continua valendo: `/mnt/nvme/PROJETOS/reconhecimento_facial/.superpowers/sdd/2026-09-18-fase-1-fundacao/global-constraints.md`. Não mexa em `services/config.ts`, `services/per.ts`, `services/erro.ts`, `db/conexaoPostgres.ts`, `loadEnv.ts`.
 
-```ts
-import { test } from "node:test";
-import assert from "node:assert";
-import { areasDoPapel } from "./areas";
+## Remover
 
-test("estação monta só fotógrafo e painel", () => {
-    assert.deepStrictEqual(
-        areasDoPapel("estacao").map((a) => a.caminho),
-        ["fotografo", "painel"]
-    );
-});
+- `apps/api/src/services/servidor.ts` e `servidor.test.ts` (função `criarApp`)
+- `apps/api/src/routes/areas.ts` e `areas.test.ts` (camada `areasDoPapel` que o padrão não tem)
+- `apps/api/src/services/saude.ts` (o `/test` do padrão não consulta banco nem Redis)
+- `apps/api/src/services/redis.ts` e a dependência `ioredis` (`npm uninstall -w apps/api ioredis`); nada usa Redis nesta fase. `REDIS_URL` continua na config.
+- `apps/api/src/_template/` inteiro (o `getAgora`/`ecoar` foi inventado; o modelo de módulo passa a ser a skill `padrao-backend`, aplicada nos primeiros módulos reais da fase 3)
+- O 404 e o error handler próprios (o padrão não tem)
 
-test("VPS monta participante, anfitrião, admin e estação", () => {
-    assert.deepStrictEqual(
-        areasDoPapel("vps").map((a) => a.caminho),
-        ["participante", "anfitriao", "admin", "estacao"]
-    );
-});
-```
+## Criar / alterar
 
-`apps/api/src/services/servidor.test.ts`:
+`apps/api/src/services/server.ts`:
 
 ```ts
-import { test, describe, before, after } from "node:test";
-import assert from "node:assert";
-import { Router } from "express";
-import { Server } from "node:http";
-import { AddressInfo } from "node:net";
-import { criarApp } from "./servidor";
-
-let servidor: Server;
-let base: string;
-
-before(async () => {
-    const area = Router();
-    area.post("/eco", (req, res) => {
-        res.send(req.body);
-    });
-    servidor = criarApp([{ caminho: "teste", router: area }]).listen(0);
-    await new Promise((resolve) => servidor.once("listening", resolve));
-    base = `http://127.0.0.1:${(servidor.address() as AddressInfo).port}`;
-});
-
-after(() => {
-    servidor.close();
-});
-
-function postar(caminho: string, corpo: string) {
-    return fetch(base + caminho, { method: "POST", headers: { "Content-Type": "application/json" }, body: corpo });
-}
-
-describe("criarApp", () => {
-    test("monta a área em /api/<area>/<modulo>", async () => {
-        const resposta = await postar("/api/teste/eco", JSON.stringify({ a: 1 }));
-
-        assert.strictEqual(resposta.status, 200);
-        assert.deepStrictEqual(await resposta.json(), { a: 1 });
-    });
-
-    test("rota desconhecida vira 404 em JSON", async () => {
-        const resposta = await postar("/api/fotografo/upload", "{}");
-
-        assert.strictEqual(resposta.status, 404);
-        assert.deepStrictEqual(await resposta.json(), { msg: "Rota não encontrada" });
-    });
-
-    test("JSON malformado vira 400 em JSON", async () => {
-        const resposta = await postar("/api/teste/eco", "{ruim");
-
-        assert.strictEqual(resposta.status, 400);
-        assert.deepStrictEqual(await resposta.json(), { msg: "JSON inválido" });
-    });
-
-    test("não expõe o X-Powered-By", async () => {
-        const resposta = await postar("/api/teste/eco", "{}");
-
-        assert.strictEqual(resposta.headers.get("x-powered-by"), null);
-    });
-});
-```
-
-- [ ] **Step 2: Rodar e ver falhar**
-
-Run: `npm test -w apps/api`
-Expected: FAIL — `Cannot find module './areas'` e `Cannot find module './servidor'`.
-
-- [ ] **Step 3: Rotas de área**
-
-Crie estes seis arquivos com o mesmo conteúdo, trocando só o nome do arquivo: `apps/api/src/routes/fotografoRoute.ts`, `painelRoute.ts`, `participanteRoute.ts`, `anfitriaoRoute.ts`, `adminRoute.ts`, `estacaoRoute.ts`.
-
-```ts
-import { Router } from "express";
-
-const router = Router();
-
-export default router;
-```
-
-`apps/api/src/routes/areas.ts`:
-
-```ts
-import { Router } from "express";
-import type { tPapel } from "../services/config";
-import fotografoRoute from "./fotografoRoute";
-import painelRoute from "./painelRoute";
-import participanteRoute from "./participanteRoute";
-import anfitriaoRoute from "./anfitriaoRoute";
-import adminRoute from "./adminRoute";
-import estacaoRoute from "./estacaoRoute";
-
-export interface iArea {
-    caminho: string;
-    router: Router;
-}
-
-const AREAS: Record<tPapel, iArea[]> = {
-    estacao: [
-        { caminho: "fotografo", router: fotografoRoute },
-        { caminho: "painel", router: painelRoute },
-    ],
-    vps: [
-        { caminho: "participante", router: participanteRoute },
-        { caminho: "anfitriao", router: anfitriaoRoute },
-        { caminho: "admin", router: adminRoute },
-        { caminho: "estacao", router: estacaoRoute },
-    ],
-};
-
-export function areasDoPapel(papel: tPapel): iArea[] {
-    return AREAS[papel];
-}
-```
-
-- [ ] **Step 4: Redis, saúde e servidor**
-
-`apps/api/src/services/redis.ts`:
-
-```ts
-import Redis from "ioredis";
-import { config } from "./config";
-
-let cliente: Redis | undefined;
-
-export function redis(): Redis {
-    if (!cliente) {
-        cliente = new Redis(config.redis.url, { keyPrefix: config.redis.prefixo, maxRetriesPerRequest: 1 });
-        cliente.on("error", (erro) => console.error("[Redis]", erro.message));
-    }
-    return cliente;
-}
-
-export async function fecharRedis(): Promise<void> {
-    const atual = cliente;
-    cliente = undefined;
-    if (atual) await atual.quit().catch(() => atual.disconnect());
-}
-```
-
-`apps/api/src/services/saude.ts`:
-
-```ts
-import fs from "node:fs";
+import http from "node:http";
 import path from "node:path";
-import ConexaoPostgres from "../db/conexaoPostgres";
-import { config, tPapel } from "./config";
-import { redis } from "./redis";
+import express from "express";
+import fileUpload from "express-fileupload";
+import { config } from "./config";
+import { fecharBanco } from "../db/conexaoPostgres";
+import fotografoRoute from "../routes/fotografoRoute";
+import painelRoute from "../routes/painelRoute";
+import participanteRoute from "../routes/participanteRoute";
+import anfitriaoRoute from "../routes/anfitriaoRoute";
+import adminRoute from "../routes/adminRoute";
+import estacaoRoute from "../routes/estacaoRoute";
 
 // Mesmo caminho relativo em src/services e dist/services.
-const VERSAO: string = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "..", "package.json"), "utf8")).version;
+const versao: string = require(path.join(__dirname, "..", "..", "package.json")).version;
 
-export interface iSaude {
-    ok: boolean;
-    papel: tPapel;
-    versao: string;
-    banco: boolean;
-    redis: boolean;
-}
+export default class StartApp {
+    app: express.Application;
+    private httpServer: http.Server;
 
-async function pingBanco(): Promise<boolean> {
-    const conexao = new ConexaoPostgres();
-    try {
-        await conexao.open();
-        await conexao.queryParam("SELECT 1", []);
-        return true;
-    } catch (erro) {
-        console.error("[Saude] Banco indisponível:", (erro as Error).message);
-        return false;
-    } finally {
-        await conexao.close();
+    constructor() {
+        this.app = express();
+        this.httpServer = http.createServer(this.app);
+
+        this.app.use(fileUpload({ limits: { fileSize: 25 * 1024 * 1024 } }));
+        this.app.use(express.json({ limit: "1mb" }));
+        this.app.use(express.urlencoded({ limit: "1mb", extended: true }));
+
+        this.rotas();
+    }
+
+    // Cada papel monta só as suas áreas.
+    private rotas() {
+        this.app.get("/test", (_req, res) => {
+            res.json({ msg: "Teste funcionando!", papel: config.papel, versao });
+        });
+
+        if (config.papel === "estacao") {
+            this.app.use("/api/fotografo", fotografoRoute);
+            this.app.use("/api/painel", painelRoute);
+        } else {
+            this.app.use("/api/participante", participanteRoute);
+            this.app.use("/api/anfitriao", anfitriaoRoute);
+            this.app.use("/api/admin", adminRoute);
+            this.app.use("/api/estacao", estacaoRoute);
+        }
+    }
+
+    listen() {
+        this.httpServer.listen(config.porta, () => {
+            console.log(`[Api] Papel ${config.papel} | porta ${config.porta} | versão ${versao}`);
+            console.log(`[Api] Banco ${config.postgres.host}:${config.postgres.porta}/${config.postgres.banco}`);
+        });
+
+        const encerrar = (evento: string) => () => {
+            console.log(`[Api] ${evento} recebido, encerrando...`);
+            this.httpServer.close(async () => {
+                await fecharBanco();
+                process.exit(0);
+            });
+        };
+        process.on("SIGINT", encerrar("SIGINT"));
+        process.on("SIGTERM", encerrar("SIGTERM"));
     }
 }
-
-async function pingRedis(): Promise<boolean> {
-    const limite = new Promise<never>((_, rejeitar) => {
-        setTimeout(() => rejeitar(new Error("tempo esgotado")), 2_000).unref();
-    });
-    try {
-        await Promise.race([redis().ping(), limite]);
-        return true;
-    } catch (erro) {
-        console.error("[Saude] Redis indisponível:", (erro as Error).message);
-        return false;
-    }
-}
-
-export async function verificarSaude(): Promise<iSaude> {
-    const [banco, redisOk] = await Promise.all([pingBanco(), pingRedis()]);
-    return { ok: banco && redisOk, papel: config.papel, versao: VERSAO, banco, redis: redisOk };
-}
-```
-
-`apps/api/src/services/servidor.ts`:
-
-```ts
-import express, { NextFunction, Request, Response } from "express";
-import fileUpload from "express-fileupload";
-import { areasDoPapel, iArea } from "../routes/areas";
-import { config } from "./config";
-import { verificarSaude } from "./saude";
-
-export function criarApp(areas: iArea[] = areasDoPapel(config.papel)): express.Express {
-    const app = express();
-    app.disable("x-powered-by");
-    app.use(express.json({ limit: "1mb" }));
-    app.use(fileUpload({ limits: { fileSize: 25 * 1024 * 1024 }, abortOnLimit: true }));
-
-    app.get("/test", async (_req: Request, res: Response) => {
-        const saude = await verificarSaude();
-        res.status(saude.ok ? 200 : 503).send(saude);
-    });
-
-    for (const area of areas) app.use(`/api/${area.caminho}`, area.router);
-
-    app.use((_req: Request, res: Response) => {
-        res.status(404).send({ msg: "Rota não encontrada" });
-    });
-
-    app.use((erro: Error & { type?: string }, _req: Request, res: Response, _next: NextFunction) => {
-        if (erro.type === "entity.parse.failed") {
-            res.status(400).send({ msg: "JSON inválido" });
-            return;
-        }
-        if (erro.type === "entity.too.large") {
-            res.status(413).send({ msg: "Requisição grande demais" });
-            return;
-        }
-        console.error("[Servidor] Erro não tratado:", erro);
-        res.status(500).send({ msg: "Erro ao processar sua solicitação" });
-    });
-
-    return app;
-}
-```
-
-- [ ] **Step 5: Rodar os testes**
-
-Run: `npm test -w apps/api && npm run typecheck -w apps/api`
-Expected: todos PASS.
-
-- [ ] **Step 6: Entrada da aplicação**
-
-`apps/api/src/loadEnv.ts`:
-
-```ts
-import dotenv from "dotenv";
-import path from "node:path";
-
-// Em container as variáveis vêm do compose; o apps/api/.env só existe no desenvolvimento.
-dotenv.config({ path: path.join(__dirname, "..", ".env"), quiet: true });
 ```
 
 `apps/api/src/index.ts`:
 
 ```ts
 import "./loadEnv";
-import { iConfig, iniciarConfig } from "./services/config";
-import { criarApp } from "./services/servidor";
-import { fecharBanco } from "./db/conexaoPostgres";
-import { fecharRedis } from "./services/redis";
+import { iniciarConfig } from "./services/config";
+import StartApp from "./services/server";
 
-function main(): void {
-    let config: iConfig;
-    try {
-        config = iniciarConfig(process.env);
-    } catch (erro) {
-        console.error((erro as Error).message);
-        process.exit(1);
-    }
-
-    const servidor = criarApp().listen(config.porta, () => {
-        console.log(`[Api] Papel ${config.papel} ouvindo na porta ${config.porta}`);
-    });
-
-    const encerrar = async () => {
-        console.log("[Api] Encerrando...");
-        servidor.close();
-        await Promise.allSettled([fecharBanco(), fecharRedis()]);
-        process.exit(0);
-    };
-    process.on("SIGTERM", encerrar);
-    process.on("SIGINT", encerrar);
+try {
+    iniciarConfig(process.env);
+} catch (erro) {
+    console.error((erro as Error).message);
+    process.exit(1);
 }
 
-main();
+new StartApp().listen();
 ```
 
-Confira a falha na inicialização (ainda não existe `apps/api/.env`):
+As seis rotas de área (`routes/fotografoRoute.ts`, `painelRoute.ts`, `participanteRoute.ts`, `anfitriaoRoute.ts`, `adminRoute.ts`, `estacaoRoute.ts`) ficam como estão: `const router = Router(); export default router;`. Os módulos das próximas fases entram com `router.post("/<modulo>", route<Modulo>)`.
 
-Run: `cd apps/api && PAPEL=vps npx tsx src/index.ts; echo "saida=$?"; cd ../..`
-Expected: `[Config] Variáveis obrigatórias faltando para o papel vps: POSTGRES_HOST, POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, REDIS_URL, ESTACAO_CHAVE, ARQUIVO_SEGREDO` e `saida=1`.
+`require` do `package.json` com caminho dinâmico é o que o erp_server faz; se o `tsc` reclamar do `require`, use `import fs` + `JSON.parse(fs.readFileSync(...))` com o mesmo caminho.
 
-- [ ] **Step 7: Módulo modelo `_template`**
+## Teste
 
-É o esqueleto que as próximas fases copiam. Ele não é montado em nenhuma área; o teste de integração da Task 8 o monta numa área de teste.
-
-`apps/api/src/_template/i._template.ts`:
+`apps/api/src/services/server.test.ts` (substitui `servidor.test.ts`), sem banco:
 
 ```ts
-export interface iEco {
-    texto: string;
+import { test, describe, afterEach } from "node:test";
+import assert from "node:assert";
+import { Server } from "node:http";
+import { AddressInfo } from "node:net";
+import { iniciarConfig } from "./config";
+import StartApp from "./server";
+
+const BASE = {
+    POSTGRES_HOST: "127.0.0.1",
+    POSTGRES_USER: "x",
+    POSTGRES_PASSWORD: "x",
+    POSTGRES_DB: "x",
+    REDIS_URL: "redis://127.0.0.1:1",
+    ESTACAO_CHAVE: "k".repeat(32),
+    VPS_URL: "http://127.0.0.1:9",
+    ARQUIVO_SEGREDO: "s",
+};
+
+let servidor: Server | undefined;
+
+afterEach(() => {
+    servidor?.close();
+});
+
+async function subir(papel: "estacao" | "vps"): Promise<string> {
+    iniciarConfig({ ...BASE, PAPEL: papel });
+    servidor = new StartApp().app.listen(0);
+    await new Promise((resolve) => servidor!.once("listening", resolve));
+    return `http://127.0.0.1:${(servidor.address() as AddressInfo).port}`;
 }
+
+describe("StartApp", () => {
+    for (const papel of ["estacao", "vps"] as const) {
+        test(`GET /test responde com o papel ${papel} e a versão`, async () => {
+            const base = await subir(papel);
+            const resposta = await fetch(`${base}/test`);
+
+            assert.strictEqual(resposta.status, 200);
+            assert.deepStrictEqual(await resposta.json(), { msg: "Teste funcionando!", papel, versao: "0.1.0" });
+        });
+    }
+});
 ```
 
-`apps/api/src/_template/sql._template.ts`:
+Passos: remova os arquivos, crie os novos, rode `npm test -w apps/api` (tudo verde), `npm run typecheck -w apps/api`, `npm run build -w apps/api` (o `dist` não pode ter `*.test.js`), e confira a falha na inicialização sem `.env`: `cd apps/api && PAPEL=vps npx tsx src/index.ts; echo "saida=$?"` → lista das variáveis faltando e `saida=1`.
 
-```ts
-import ConexaoPostgres from "../db/conexaoPostgres";
-
-export default class Sql {
-    constructor(private conexao: ConexaoPostgres) {}
-
-    async getAgora() {
-        return this.conexao.queryOneParam<{ agora: Date }>("SELECT now() AS agora", []);
-    }
-}
-```
-
-`apps/api/src/_template/ctrl._template.ts`:
-
-```ts
-import ConexaoPostgres from "../db/conexaoPostgres";
-import Sql from "./sql._template";
-import { iEco } from "./i._template";
-
-export default class Ctrl {
-    private sql: Sql;
-
-    constructor(conexao: ConexaoPostgres) {
-        this.sql = new Sql(conexao);
-    }
-
-    async getAgora() {
-        return this.sql.getAgora();
-    }
-
-    async ecoar(texto: string): Promise<iEco | { msg: string; error: true }> {
-        if (texto.length > 100) return { msg: "O texto deve ter no máximo 100 caracteres", error: true };
-        return { texto: texto.toUpperCase() };
-    }
-}
-```
-
-`apps/api/src/_template/route._template.ts`:
-
-```ts
-import { NextFunction, Request, Response } from "express";
-import per, { iContexto } from "../services/per";
-import ConexaoPostgres from "../db/conexaoPostgres";
-import Ctrl from "./ctrl._template";
-
-class Router {
-    conexao: ConexaoPostgres;
-    private ctrl: Ctrl;
-
-    constructor(private contexto: iContexto) {
-        this.conexao = new ConexaoPostgres();
-        this.ctrl = new Ctrl(this.conexao);
-    }
-
-    async init() {
-        await this.conexao.open();
-    }
-
-    async getAgora(_req: Request) {
-        return this.ctrl.getAgora();
-    }
-
-    async ecoar(req: Request) {
-        const { texto } = req.body;
-        if (!texto) return { msg: "texto é obrigatório", error: true };
-        return this.ctrl.ecoar(texto);
-    }
-}
-
-export default (req: Request, res: Response, next: NextFunction) => per(req, res, next, Router);
-```
-
-`apps/api/src/_template/_template.http`:
-
-```http
-# Modelo: depois de copiar o módulo, registre em routes/<area>Route.ts
-# com router.post("/<modulo>", route<Modulo>) e ajuste @area e @modulo.
-@porta = 3002
-@area = admin
-@modulo = template
-
-###
-POST http://localhost:{{porta}}/api/{{area}}/{{modulo}}
-Content-Type: application/json
-
-{
-    "call": "getAgora"
-}
-
-###
-POST http://localhost:{{porta}}/api/{{area}}/{{modulo}}
-Content-Type: application/json
-
-{
-    "call": "ecoar",
-    "texto": "olá"
-}
-```
-
-Run: `npm run typecheck -w apps/api && npm run build -w apps/api && ls apps/api/dist`
-Expected: sem erros; `dist` contém `index.js`, `loadEnv.js`, `services/`, `db/`, `routes/`, `_template/` e nenhum `*.test.js`.
-
-- [ ] **Step 8: Commit**
+Commit (`git add -A apps/api package.json package-lock.json` — confira que `init.txt`, `.claude/` e `.superpowers/` NÃO entram):
 
 ```bash
-git add apps/api/src
-git commit -m "feat(api): servidor com áreas por papel, /test e módulo modelo" -m "Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+git commit -m "refactor(api): servidor no padrão StartApp do erp_server" -m "Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
+
 
 ---
 
@@ -2985,13 +2697,13 @@ git commit -m "feat(db): schema inicial da VPS e da estação" -m "Co-Authored-B
 
 ---
 
-### Task 8: Integração da API com Postgres e Redis
+### Task 8: Integração da ConexaoPostgres com Postgres real
 
 **Files:**
-- Create: `apps/api/integracao/ambiente.ts`, `apps/api/integracao/api.test.ts`
+- Create: `apps/api/integracao/ambiente.ts`, `apps/api/integracao/conexao.test.ts`
 
 **Interfaces:**
-- Consumes: `iniciarConfig` (Task 1); `ConexaoPostgres`, `fecharBanco` (Task 2); `criarApp`, `fecharRedis`, `_template` (Task 4); Postgres e Redis do dev (Task 6)
+- Consumes: `iniciarConfig` (Task 1); `ConexaoPostgres`, `fecharBanco` (Task 2); `StartApp` (Task 4); Postgres do dev (Task 6)
 - Produces: `envTeste(papel: tPapel): NodeJS.ProcessEnv` para os testes de integração das próximas fases
 
 - [ ] **Step 1: Ambiente de teste**
@@ -3021,103 +2733,43 @@ export function envTeste(papel: tPapel): NodeJS.ProcessEnv {
 
 - [ ] **Step 2: Escrever o teste**
 
-`apps/api/integracao/api.test.ts`:
+`apps/api/integracao/conexao.test.ts`:
 
 ```ts
 import { test, describe, before, after } from "node:test";
 import assert from "node:assert";
-import { Router } from "express";
-import { Server } from "node:http";
-import { AddressInfo } from "node:net";
 import { iniciarConfig } from "../src/services/config";
-import { criarApp } from "../src/services/servidor";
 import ConexaoPostgres, { fecharBanco } from "../src/db/conexaoPostgres";
-import { fecharRedis } from "../src/services/redis";
-import routeTemplate from "../src/_template/route._template";
 import { envTeste } from "./ambiente";
 
 const TABELA = `teste_conexao_${process.pid}`;
 
-let servidor: Server;
-let base: string;
+async function executar(sql: string): Promise<void> {
+    const c = new ConexaoPostgres();
+    await c.open();
+    await c.queryParam(sql, []);
+    await c.close();
+}
+
+async function contar(): Promise<number> {
+    const c = new ConexaoPostgres();
+    await c.open();
+    const linha = await c.queryOneParam<{ n: number }>(`SELECT count(*)::int AS n FROM ${TABELA}`, []);
+    await c.close();
+    return linha?.n ?? -1;
+}
 
 before(async () => {
     iniciarConfig(envTeste("vps"));
-    const area = Router();
-    area.post("/template", routeTemplate);
-    servidor = criarApp([{ caminho: "teste", router: area }]).listen(0);
-    await new Promise((resolve) => servidor.once("listening", resolve));
-    base = `http://127.0.0.1:${(servidor.address() as AddressInfo).port}`;
+    await executar(`CREATE TABLE IF NOT EXISTS ${TABELA} (x int)`);
 });
 
 after(async () => {
-    servidor.close();
+    await executar(`DROP TABLE IF EXISTS ${TABELA}`);
     await fecharBanco();
-    await fecharRedis();
 });
 
-async function chamarTemplate(corpo: object) {
-    const resposta = await fetch(`${base}/api/teste/template`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(corpo),
-    });
-    return { status: resposta.status, corpo: await resposta.json() };
-}
-
-describe("GET /test", () => {
-    test("responde 200 com banco e Redis de pé", async () => {
-        const resposta = await fetch(`${base}/test`);
-        const corpo = await resposta.json();
-
-        assert.strictEqual(resposta.status, 200);
-        assert.deepStrictEqual(corpo, { ok: true, papel: "vps", versao: "0.1.0", banco: true, redis: true });
-    });
-});
-
-describe("módulo modelo pelo per", () => {
-    test("getAgora consulta o banco", async () => {
-        const r = await chamarTemplate({ call: "getAgora" });
-
-        assert.strictEqual(r.status, 200);
-        assert.ok(!Number.isNaN(Date.parse(r.corpo.agora)));
-    });
-
-    test("ecoar sem texto devolve erro de negócio", async () => {
-        assert.deepStrictEqual((await chamarTemplate({ call: "ecoar" })).corpo, {
-            msg: "texto é obrigatório",
-            error: true,
-        });
-    });
-
-    test("ecoar passa pela ctrl", async () => {
-        assert.deepStrictEqual((await chamarTemplate({ call: "ecoar", texto: "olá" })).corpo, { texto: "OLÁ" });
-    });
-});
-
-describe("ConexaoPostgres com transação", () => {
-    before(async () => {
-        const c = new ConexaoPostgres();
-        await c.open();
-        await c.queryParam(`CREATE TABLE IF NOT EXISTS ${TABELA} (x int)`, []);
-        await c.close();
-    });
-
-    after(async () => {
-        const c = new ConexaoPostgres();
-        await c.open();
-        await c.queryParam(`DROP TABLE IF EXISTS ${TABELA}`, []);
-        await c.close();
-    });
-
-    async function contar(): Promise<number> {
-        const c = new ConexaoPostgres();
-        await c.open();
-        const linha = await c.queryOneParam<{ n: number }>(`SELECT count(*)::int AS n FROM ${TABELA}`, []);
-        await c.close();
-        return linha?.n ?? -1;
-    }
-
+describe("ConexaoPostgres com banco real", () => {
     test("close sem erro faz commit", async () => {
         const c = new ConexaoPostgres();
         await c.openTransaction();
@@ -3137,11 +2789,30 @@ describe("ConexaoPostgres com transação", () => {
         assert.strictEqual(await contar(), 1);
     });
 
+    test("reabrir com transação aberta desfaz a anterior", async () => {
+        const c = new ConexaoPostgres();
+        await c.openTransaction();
+        await c.executeParamCount(`INSERT INTO ${TABELA} VALUES (?)`, [3]);
+        await c.openTransaction();
+        await c.close();
+
+        assert.strictEqual(await contar(), 1);
+    });
+
     test("queryOneParam sem linha devolve undefined", async () => {
         const c = new ConexaoPostgres();
         await c.open();
         assert.strictEqual(await c.queryOneParam(`SELECT x FROM ${TABELA} WHERE x = ?`, [999]), undefined);
         await c.close();
+    });
+
+    test("? dentro de texto não desalinha os valores", async () => {
+        const c = new ConexaoPostgres();
+        await c.open();
+        const linha = await c.queryOneParam<{ t: string; n: number }>("SELECT 'o que houve?' AS t, ?::int AS n", [7]);
+        await c.close();
+
+        assert.deepStrictEqual(linha, { t: "o que houve?", n: 7 });
     });
 });
 ```
@@ -3149,19 +2820,19 @@ describe("ConexaoPostgres com transação", () => {
 - [ ] **Step 3: Rodar**
 
 Run: `npm run test:integracao -w apps/api`
-Expected: 7 testes PASS. O teste "rollback" imprime o `console.error` do `[Postgres]`, é esperado. Se `versao` não bater, confira `version` em `apps/api/package.json` (deve ser `0.1.0`).
+Expected: 5 testes PASS. O teste "rollback" imprime o `console.error` do `[Postgres]`, é esperado.
 
 - [ ] **Step 4: Rodar a API de verdade**
 
-Run (em um terminal): `npm run dev -w apps/api`
-Em outro: `curl -s localhost:3002/test`
-Expected: `{"ok":true,"papel":"vps","versao":"0.1.0","banco":true,"redis":true}`. Pare com Ctrl+C e confira que aparece `[Api] Encerrando...`.
+Run em segundo plano: `npm run dev -w apps/api` (usa o `apps/api/.env` da Task 6, papel vps na porta 3002)
+Depois: `curl -s localhost:3002/test`
+Expected: `{"msg":"Teste funcionando!","papel":"vps","versao":"0.1.0"}`. Encerre o processo com SIGINT e confira `[Api] SIGINT recebido, encerrando...`.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add apps/api/integracao
-git commit -m "test(api): integração do per, ConexaoPostgres e /test" -m "Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+git commit -m "test(api): integração da ConexaoPostgres com Postgres real" -m "Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
@@ -3334,10 +3005,9 @@ docker compose -f docker-compose.dev.yml up -d --build
 docker compose -f docker-compose.dev.yml ps -a
 curl -s localhost:3001/test; echo
 curl -s localhost:3002/test; echo
-curl -s -X POST localhost:3002/api/fotografo/upload -H 'Content-Type: application/json' -d '{}'; echo
 ```
 
-Expected: `migrate-*` com `Exited (0)`; `api-*` `healthy`; `/test` devolve `"papel":"estacao"` na 3001 e `"papel":"vps"` na 3002, os dois com `"ok":true`; a última chamada devolve `{"msg":"Rota não encontrada"}` (a VPS não monta a área do fotógrafo).
+Expected: `migrate-*` com `Exited (0)`; `api-*` `healthy`; `/test` devolve `"papel":"estacao"` na 3001 e `"papel":"vps"` na 3002, os dois com `"msg":"Teste funcionando!"`.
 
 - [ ] **Step 3: Compose da estação**
 
@@ -3440,7 +3110,7 @@ curl -s localhost:8080/test; echo
 docker compose --env-file .env.estacao -f docker-compose.estacao.yml down -v
 ```
 
-Expected: `migrate` com `Exited (0)`, `api` `healthy`, `curl` devolve `{"ok":true,"papel":"estacao",...}` passando pelo Traefik.
+Expected: `migrate` com `Exited (0)`, `api` `healthy`, `curl` devolve `{"msg":"Teste funcionando!","papel":"estacao",...}` passando pelo Traefik.
 
 - [ ] **Step 4: Compose da VPS**
 
@@ -3580,7 +3250,7 @@ docker compose --env-file .env.vps -f docker-compose.vps.yml down -v
 rm infra/certs/origem.key infra/certs/origem.pem .env.vps .env.estacao
 ```
 
-Expected: os dois primeiros `curl` devolvem `{"ok":true,"papel":"vps",...}`; host desconhecido devolve `404` (do Traefik); HTTP devolve `301` ou `308` (redirecionamento para HTTPS).
+Expected: os dois primeiros `curl` devolvem `{"msg":"Teste funcionando!","papel":"vps",...}`; host desconhecido devolve `404` (do Traefik); HTTP devolve `301` ou `308` (redirecionamento para HTTPS).
 
 - [ ] **Step 5: Documentação**
 
@@ -3638,7 +3308,7 @@ Cada banco guarda o seu papel em `schema_papel` e recusa migrations do outro pap
 
 ## Módulo novo na API
 
-Copie `apps/api/src/_template/` para `apps/api/src/_<AREA>/<modulo>/`, renomeie os arquivos e registre em `apps/api/src/routes/<area>Route.ts`:
+Siga a skill `.claude/skills/padrao-backend` (pasta `apps/api/src/_<AREA>/<modulo>/` com `route.`, `ctrl.`, `sql.`, `i.` e `.http`) e registre em `apps/api/src/routes/<area>Route.ts`:
 
 ```ts
 router.post("/<modulo>", routeModulo);
