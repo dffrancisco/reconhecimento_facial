@@ -170,12 +170,29 @@ describe("schema da VPS", () => {
         );
     });
 
+    test("índices de exclusão em lote existem", async () => {
+        const { rows } = await banco.client.query(
+            "SELECT indexname FROM pg_indexes WHERE indexname = ANY($1)",
+            [
+                [
+                    "ix_busca_origem",
+                    "ix_arquivo_zip_busca",
+                    "ix_arquivo_zip_evento",
+                    "ix_participante_evento_evento",
+                    "ix_aparelho_participante_evento",
+                    "ix_calibracao_evento",
+                ],
+            ]
+        );
+        assert.strictEqual(rows.length, 6);
+    });
+
     test("desfazer tudo volta ao banco vazio e refazer funciona", async () => {
         await desfazerTudo(banco.client, "vps");
         assert.deepStrictEqual(await tabelas(banco.client), CONTROLE);
 
         const feitas = await aplicarPendentes(banco.client, MIGRACOES, "vps");
-        assert.strictEqual(feitas.length, 5);
+        assert.strictEqual(feitas.length, 6);
     });
 });
 
@@ -226,11 +243,18 @@ describe("schema da estação", () => {
         );
     });
 
+    test("índice de exclusão em lote existe", async () => {
+        const { rowCount } = await banco.client.query(
+            "SELECT 1 FROM pg_indexes WHERE indexname = 'ix_rosto_evento'"
+        );
+        assert.strictEqual(rowCount, 1);
+    });
+
     test("desfazer tudo volta ao banco vazio e refazer funciona", async () => {
         await desfazerTudo(banco.client, "estacao");
         assert.deepStrictEqual(await tabelas(banco.client), CONTROLE);
 
         const feitas = await aplicarPendentes(banco.client, MIGRACOES, "estacao");
-        assert.strictEqual(feitas.length, 3);
+        assert.strictEqual(feitas.length, 4);
     });
 });
