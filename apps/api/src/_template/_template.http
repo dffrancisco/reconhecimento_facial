@@ -1,0 +1,22 @@
+# Modelo: depois de copiar o módulo, registre em routes/<area>Route.ts
+# com router.post("/<modulo>", route<Modulo>) e ajuste @area e @modulo.
+@porta = 3002
+@area = admin
+@modulo = template
+
+###
+POST http://localhost:{{porta}}/api/{{area}}/{{modulo}}
+Content-Type: application/json
+
+{
+    "call": "getAgora"
+}
+
+###
+POST http://localhost:{{porta}}/api/{{area}}/{{modulo}}
+Content-Type: application/json
+
+{
+    "call": "ecoar",
+    "texto": "olá"
+}
