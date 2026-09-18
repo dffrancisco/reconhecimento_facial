@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.env
+.env.estacao
+.env.vps
+infra/certs/*
+!infra/certs/.gitkeep
