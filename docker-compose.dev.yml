@@ -1,5 +1,6 @@
 # Desenvolvimento: os dois papéis na mesma máquina.
 # Só a infraestrutura:  docker compose -f docker-compose.dev.yml up -d postgres redis
+# Tudo:                 docker compose -f docker-compose.dev.yml up -d --build
 name: fotos-dev
 
 services:
@@ -26,6 +27,56 @@ services:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       retries: 10
+
+  migrate-estacao:
+    build: { context: ., dockerfile: db/Dockerfile }
+    environment: &banco-dev
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: fotos
+      POSTGRES_PASSWORD: fotos
+      PAPEL: estacao
+      POSTGRES_DB: fotos_estacao
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  migrate-vps:
+    build: { context: ., dockerfile: db/Dockerfile }
+    environment:
+      <<: *banco-dev
+      PAPEL: vps
+      POSTGRES_DB: fotos_vps
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  api-estacao:
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    environment:
+      <<: *banco-dev
+      REDIS_URL: redis://redis:6379
+      REDIS_PREFIXO: "fotos:estacao:"
+      ESTACAO_CHAVE: dev-somente-local-dev-somente-local
+      VPS_URL: http://api-vps:3000
+    ports:
+      - "127.0.0.1:3001:3000"
+    depends_on:
+      migrate-estacao: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+
+  api-vps:
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    environment:
+      <<: *banco-dev
+      PAPEL: vps
+      POSTGRES_DB: fotos_vps
+      REDIS_URL: redis://redis:6379
+      REDIS_PREFIXO: "fotos:vps:"
+      ESTACAO_CHAVE: dev-somente-local-dev-somente-local
+      ARQUIVO_SEGREDO: dev-somente-local
+    ports:
+      - "127.0.0.1:3002:3000"
+    depends_on:
+      migrate-vps: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
 
 volumes:
   pg-dev:

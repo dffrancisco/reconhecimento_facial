@@ -1,0 +1,8 @@
+**/node_modules
+**/dist
+.git
+docs
+infra/certs
+.env
+.env.*
+**/.env

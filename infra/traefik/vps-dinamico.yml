@@ -1,0 +1,7 @@
+# Certificado de origem da Cloudflare, gravado em infra/certs (fora do git).
+tls:
+  stores:
+    default:
+      defaultCertificate:
+        certFile: /certs/origem.pem
+        keyFile: /certs/origem.key

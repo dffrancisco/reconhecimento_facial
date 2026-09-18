@@ -1,0 +1,61 @@
+# Estação no local do evento.
+# Uso: docker compose --env-file .env.estacao -f docker-compose.estacao.yml up -d --build
+name: fotos-estacao
+
+services:
+  traefik:
+    image: traefik:v3.6
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.lan.address=:80
+    ports:
+      - "${PORTA_LAN:-80}:80"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
+
+  postgres:
+    image: pgvector/pgvector:0.8.1-pg16
+    env_file: .env.estacao
+    volumes:
+      - pg-estacao:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-estacao:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+  migrate:
+    build: { context: ., dockerfile: db/Dockerfile }
+    env_file: .env.estacao
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  api:
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    env_file: .env.estacao
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.api.rule=PathPrefix(`/api`) || Path(`/test`)
+      - traefik.http.routers.api.entrypoints=lan
+      - traefik.http.services.api.loadbalancer.server.port=3000
+    restart: unless-stopped
+
+volumes:
+  pg-estacao:
+  redis-estacao:

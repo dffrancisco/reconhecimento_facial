@@ -1,0 +1,70 @@
+# VPS sempre ligada.
+# Uso: docker compose --env-file .env.vps -f docker-compose.vps.yml up -d --build
+# Requer infra/certs/origem.pem e origem.key (certificado de origem da Cloudflare).
+name: fotos-vps
+
+services:
+  traefik:
+    image: traefik:v3.6
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.file.filename=/etc/traefik/dinamico.yml
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.websecure.address=:443
+    ports:
+      - "${PORTA_HTTP:-80}:80"
+      - "${PORTA_HTTPS:-443}:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./infra/traefik/vps-dinamico.yml:/etc/traefik/dinamico.yml:ro
+      - ./infra/certs:/certs:ro
+    restart: unless-stopped
+
+  postgres:
+    image: pgvector/pgvector:0.8.1-pg16
+    env_file: .env.vps
+    volumes:
+      - pg-vps:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-vps:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+  migrate:
+    build: { context: ., dockerfile: db/Dockerfile }
+    env_file: .env.vps
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  api:
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    env_file: .env.vps
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.api.rule=(Host(`${DOMINIO_PARTICIPANTE}`) || Host(`${DOMINIO_ADMIN}`)) && (PathPrefix(`/api`) || Path(`/test`))
+      - traefik.http.routers.api.entrypoints=websecure
+      - traefik.http.routers.api.tls=true
+      - traefik.http.services.api.loadbalancer.server.port=3000
+    restart: unless-stopped
+
+volumes:
+  pg-vps:
+  redis-vps:
