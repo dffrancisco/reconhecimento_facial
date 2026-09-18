@@ -29,30 +29,64 @@ export async function fecharBanco(): Promise<void> {
     await atual?.end();
 }
 
-function semStrings(sql: string): string {
-    return sql.replace(/'([^']|'')*'/g, "''");
-}
-
 // Aceita `?` posicional (traduzido para $N) ou `$N` nativo, nunca os dois na mesma query:
 // numerar os `?` a partir de 1 colidiria com os $N escritos à mão.
 export function parseParams(sql: string, valores: unknown[]): { text: string; values: unknown[] } {
-    const visivel = semStrings(sql);
-    const temInterrogacao = visivel.includes("?");
-    const temNativo = /\$\d/.test(visivel);
+    // Primeiro, verifica mistura de ? e $N, ignorando conteúdo de strings.
+    let inString = false;
+    let temInterrogacao = false;
+    let temNativo = false;
+
+    for (let i = 0; i < sql.length; i++) {
+        if (sql[i] === "'") {
+            if (i + 1 < sql.length && sql[i + 1] === "'") {
+                // Aspas escapadas '' — pula ambas
+                i++;
+            } else {
+                // Abre ou fecha a string
+                inString = !inString;
+            }
+        } else if (!inString) {
+            if (sql[i] === "?") {
+                temInterrogacao = true;
+            } else if (sql[i] === "$" && i + 1 < sql.length && /\d/.test(sql[i + 1])) {
+                temNativo = true;
+            }
+        }
+    }
 
     if (temInterrogacao && temNativo)
         throw new Error("SQL mistura placeholder `?` com `$N`: use apenas uma das duas sintaxes");
 
     if (temNativo) return { text: sql, values: valores };
 
+    // Traduz ? para $N, ignorando placeholders dentro de strings.
     const values: unknown[] = [];
-    let i = 0;
-    const text = sql.replace(/\?/g, () => {
-        values.push(valores[i] ?? null);
-        i++;
-        return `$${i}`;
-    });
-    return { text, values };
+    let valIdx = 0;
+    let result = "";
+    inString = false;
+
+    for (let i = 0; i < sql.length; i++) {
+        if (sql[i] === "'") {
+            if (i + 1 < sql.length && sql[i + 1] === "'") {
+                // Aspas escapadas — copia ambas
+                result += "''";
+                i++;
+            } else {
+                // Abre ou fecha a string
+                inString = !inString;
+                result += "'";
+            }
+        } else if (sql[i] === "?" && !inString) {
+            values.push(valores[valIdx] ?? null);
+            valIdx++;
+            result += `$${valIdx}`;
+        } else {
+            result += sql[i];
+        }
+    }
+
+    return { text: result, values };
 }
 
 export default class ConexaoPostgres {
@@ -140,6 +174,21 @@ export default class ConexaoPostgres {
 
     private async liberar(): Promise<void> {
         if (this.client) {
+            if (this.emTransacao) {
+                // Transação não foi fechada explicitamente — faz rollback para não danificar a conexão do pool.
+                try {
+                    await this.client.query("ROLLBACK");
+                } catch (erro) {
+                    console.error("[Postgres] Erro ao fazer rollback na transação:", erro);
+                    // Libera a conexão como danificada, node-postgres a destrói.
+                    this.client.release(erro as Error);
+                    this.client = null;
+                    this.aberta = false;
+                    this.emTransacao = false;
+                    return;
+                }
+            }
+
             try {
                 this.client.release();
             } catch (erro) {

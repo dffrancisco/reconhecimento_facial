@@ -29,6 +29,20 @@ describe("parseParams com ?", () => {
 
         assert.strictEqual(r.text, "SELECT 1 - (embedding <=> $1::vector) FROM rosto WHERE id_evento = $2");
     });
+
+    test("ignora ? em texto de string", () => {
+        const r = parseParams("SELECT * FROM t WHERE nota = 'o que houve?' AND id = ?", [42]);
+
+        assert.strictEqual(r.text, "SELECT * FROM t WHERE nota = 'o que houve?' AND id = $1");
+        assert.deepStrictEqual(r.values, [42]);
+    });
+
+    test("ignora ? em string com escape", () => {
+        const r = parseParams("WHERE a = 'it''s?' AND b = ?", [1]);
+
+        assert.strictEqual(r.text, "WHERE a = 'it''s?' AND b = $1");
+        assert.deepStrictEqual(r.values, [1]);
+    });
 });
 
 describe("parseParams com $N", () => {
