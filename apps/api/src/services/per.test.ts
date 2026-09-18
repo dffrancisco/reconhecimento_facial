@@ -73,7 +73,9 @@ before(async () => {
     app.use(express.json());
     app.use(fileUpload());
     app.post("/rota", (req: Request, res: Response, next: NextFunction) => per(req, res, next, RotaFalsa));
-    app.post("/init-falha", (req: Request, res: Response, next: NextFunction) => per(req, res, next, RotaInitFalha));
+    app.post("/init-falha", (req: Request, res: Response, next: NextFunction) =>
+        per(req, res, next, RotaInitFalha)
+    );
     servidor = app.listen(0);
     await new Promise((resolve) => servidor.once("listening", resolve));
     base = `http://127.0.0.1:${(servidor.address() as AddressInfo).port}`;

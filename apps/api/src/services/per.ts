@@ -55,7 +55,7 @@ export default async function per(
             res.status(422).send({ msg: erro.message });
             return;
         }
-        console.error(`[per] Erro em ${req.originalUrl} (${call}):`, erro);
+        console.error(`[per] Erro em ${req.baseUrl}${req.path} (${call}):`, erro);
         res.status(500).send({ msg: "Erro ao processar sua solicitação" });
     } finally {
         if (rota?.conexao) {
