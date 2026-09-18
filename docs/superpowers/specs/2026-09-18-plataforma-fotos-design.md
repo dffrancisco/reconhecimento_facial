@@ -24,12 +24,16 @@ Inspiração: focoradical.com.br. Diferença de modelo: aqui a entrega é **grat
 | Anfitrião | Segundo link secreto por evento (`/a/<chave>`): galeria completa e ZIP. |
 | Lead | Verificação por WhatsApp **iniciada pelo participante**, com código de 5 dígitos. Configurável por evento (`exigir_whatsapp`). |
 | Filtro por horário | Não existe. A busca traz todas as fotos do evento. |
-| Topologia | **Estação** local com GPU, ligada só durante o evento, e **VPS** sempre ligada. |
+| Fotos novas depois da busca | O resultado é uma "foto" do momento da busca. A página de resultados tem o botão **"Buscar de novo"**: nova selfie, sem repetir o WhatsApp. Nada biométrico é guardado para avisar depois. |
+| Busca sem resultado | Não pede WhatsApp nem nada. Mostra "ainda não encontramos fotos suas, volte mais tarde". |
+| Patrocinadores | O operador sobe os logos dos patrocinadores no evento. Eles aparecem nas páginas do participante (evento e resultados). |
+| Moderação | O operador pode **ocultar** (reversível) ou **excluir** uma foto no admin. |
+| Topologia | **Estação** com GPU **no local do evento**, ligada só durante o evento, e **VPS** sempre ligada. Os fotógrafos enviam pela rede local. |
 | Arquivos públicos | Na VPS, em disco, servidos pelo nginx com link assinado. A interface de armazenamento permite trocar por S3/R2 depois. |
 | Resolução entregue | 2048 px no lado maior. Suficiente para feed, Stories e Facebook. |
 | Retenção | 90 dias após `data_fim` (configurável por evento). O expurgo apaga fotos, rostos, buscas e vínculos. Ficam só os leads com consentimento de marketing e as contagens. Os originais ficam na estação. |
 | Calibração do limiar | Tela no admin, sem script com planilha. |
-| Borda | Traefik próprio em cada compose. Na estação, Cloudflare Tunnel (só fotógrafo e painel); na VPS, proxy da Cloudflare. |
+| Borda | Traefik próprio em cada compose. Na estação, rede local (Wi-Fi/cabo) para os fotógrafos e Cloudflare Tunnel para acesso remoto (operador, fotógrafo fora do local); na VPS, proxy da Cloudflare. |
 
 ### Mudanças em relação ao prompt original
 
@@ -47,7 +51,7 @@ O prompt inicial foi gerado por um agente de voz. Estas decisões o substituem:
 ## 3. Arquitetura
 
 ```
-ESTAÇÃO (local, GPU)                            VPS (sempre ligada)
+ESTAÇÃO (no local do evento, GPU)               VPS (sempre ligada)
 liga para o evento, desliga depois              atende o público por 90 dias
 ┌──────────────────────────────────┐           ┌──────────────────────────────────┐
 │ web-fotografo                    │           │ web-participante                 │
@@ -58,15 +62,18 @@ liga para o evento, desliga depois              atende o público por 90 dias
 │   publicar                       │           │ vision (MODO=selfie-cpu)         │
 │ vision (MODO=gpu)                │ ◀──────── │ postgres (pgvector) + redis      │
 │ postgres (pgvector) + redis      │  sincroniza│ /data/fotos (web, thumb, prévia) │
-│ /data/originais                  │  eventos  │ nginx: links assinados           │
+│ /data/originais                  │  eventos  │ /data/patrocinadores (logos)     │
+│                                  │           │ nginx: links assinados           │
 └──────────────────────────────────┘           └──────────────────────────────────┘
-        ▲ LAN ou Cloudflare Tunnel                     ▲ proxy Cloudflare
-    fotógrafos e operador                         participantes, anfitriões, operador
+   ▲ rede local (fotógrafos)                           ▲ proxy Cloudflare
+   ▲ Cloudflare Tunnel (acesso remoto)            participantes, anfitriões, operador
 ```
 
 ### Papéis
 
 - **Estação:**
+  - fica fisicamente no local do evento. Os fotógrafos enviam pela rede local, sem depender da internet (originais de 10–20 MB cada, ~300 GB num evento de 20 mil fotos);
+  - usa a internet só para sincronizar com a VPS, publicar as versões comprimidas (~16 GB por evento de 20 mil fotos) e dar acesso remoto pelo túnel. Se a internet cair, as publicações esperam na fila;
   - recebe os uploads e guarda os originais;
   - detecta rostos na GPU e gera as versões comprimidas;
   - publica cada foto pronta na VPS.
@@ -89,7 +96,7 @@ liga para o evento, desliga depois              atende o público por 90 dias
 ### Sincronização
 
 - **VPS → estação** (job `sincronizar`, quando a estação sobe e depois a cada 60 s): a estação chama `_ESTACAO/sincronizacao.getSincronizacao` e recebe operadores (login e hash da senha), eventos ativos com `config` e URL da marca d'água, fotógrafos e vínculos com tokens. Tudo é gravado na estação com **os mesmos IDs** da VPS (upsert por PK).
-- **Estação → VPS, fotos** (fila `publicar-foto`): `_ESTACAO/foto.publicarFoto`, multipart com um JSON (dados + rostos) e três arquivos. A VPS faz upsert por `(id_evento, hash_arquivo)` e é idempotente.
+- **Estação → VPS, fotos** (fila `publicar-foto`): `_ESTACAO/foto.publicarFoto`, multipart com um JSON (dados + rostos) e três arquivos. A VPS faz upsert por `(id_evento, hash_arquivo)` e é idempotente. Se a foto já existe com `situacao = 'excluida'`, a VPS ignora o envio e responde OK, para a estação não ressuscitar uma foto excluída.
 - **Estação → VPS, sinal** (a cada 30 s): `_ESTACAO/sinal.registrarSinal` com o tamanho da fila por etapa, fotos por minuto, erros, latência e VRAM.
 - **Autenticação estação → VPS:** header `Authorization` com `ESTACAO_CHAVE` (segredo longo, igual nos dois `.env`), sobre HTTPS.
 
@@ -182,6 +189,9 @@ evento              id_evento serial PK, nome varchar(150), slug varchar(80) UNI
                     config jsonb '{}', expurgado_em timestamptz NULL,
                     deletado varchar(1) 'N', criado_em, updated_at
 
+evento_patrocinador id_evento_patrocinador serial PK, id_evento FK CASCADE, nome varchar(100),
+                    site varchar(255) NULL, ordem int 0, criado_em
+
 fotografo           id_fotografo serial PK, nome varchar(100), telefone varchar(20),
                     deletado varchar(1) 'N', criado_em
 evento_fotografo    id_evento_fotografo serial PK, id_evento FK, id_fotografo FK,
@@ -192,6 +202,8 @@ foto                id_foto serial PK, id_evento FK CASCADE, id_evento_fotografo
                     hash_arquivo varchar(64), largura int, altura int, bytes_web int,
                     capturada_em timestamptz NULL, camera varchar(80) NULL,
                     qtd_rostos int, publicada_em timestamptz,
+                    situacao varchar(20) 'visivel' CHECK (visivel|oculta|excluida),
+                    situacao_em timestamptz NULL,
                     UNIQUE (id_evento, hash_arquivo)
 rosto               id_rosto bigserial PK, id_foto FK CASCADE, id_evento FK CASCADE,
                     embedding vector(512), bbox jsonb, det_score real, area_px int
@@ -211,7 +223,8 @@ busca               id_busca serial PK, id_evento FK CASCADE, token varchar(40) 
                     qtd_fotos int, qtd_downloads int 0,
                     consentimento_em timestamptz NOT NULL, versao_termo varchar(20) NOT NULL,
                     aceita_marketing varchar(1) 'N', id_participante FK NULL,
-                    criado_em, verificada_em NULL, codigo_expira_em NULL
+                    id_busca_origem FK NULL  -- preenchida no "buscar de novo"
+                    , criado_em, verificada_em NULL, codigo_expira_em NULL
 busca_foto          id_busca FK CASCADE, id_foto FK CASCADE,
                     id_rosto bigint NULL  -- rosto do melhor match, usado na exclusão LGPD
                     , similaridade real, PK (id_busca, id_foto)
@@ -234,7 +247,12 @@ log                 id_log serial PK, id_operador FK NULL, tela varchar(60), log
 - `ux_busca_codigo_aguardando` UNIQUE (`codigo`) `WHERE status = 'aguardando'`;
 - `ix_busca_evento (id_evento)`.
 
-Os caminhos dos arquivos não ficam no banco. Eles são derivados de `id_evento` e `hash_arquivo`: `/data/fotos/<id_evento>/<hash>_web.jpg`, `_thumb.jpg`, `_previa.jpg`.
+Os caminhos dos arquivos não ficam no banco. Eles são derivados de `id_evento` e `hash_arquivo`: `/data/fotos/<id_evento>/<hash>_web.jpg`, `_thumb.jpg`, `_previa.jpg`. Os logos ficam em `/data/patrocinadores/<id_evento>/<id_evento_patrocinador>.png`.
+
+Situação da foto:
+- `visivel`: aparece em buscas, resultados, galeria do anfitrião e ZIPs.
+- `oculta`: some de tudo isso, mas arquivos e rostos continuam. Pode voltar a `visivel`.
+- `excluida`: arquivos, `rosto`, `numero_peito` e `busca_foto` apagados. A linha de `foto` fica só para bloquear a republicação pela estação. Não tem volta.
 
 Chaves do `evento.config`:
 
@@ -411,7 +429,7 @@ Evento privado nunca é acessível pelo slug.
 
 ### Busca: `_PARTICIPANTE/busca.buscar` (multipart)
 
-**Entrada:** `slug` ou `chave_acesso`, 1 a `max_selfies` arquivos, `versao_termo`, `aceita_marketing`, `chave_aparelho?`.
+**Entrada:** `slug` ou `chave_acesso`, 1 a `max_selfies` arquivos, `versao_termo`, `aceita_marketing`, `chave_aparelho?`, `token_origem?` (token da busca anterior, no "buscar de novo").
 
 **Passos:**
 1. **Limite de taxa:** Redis, `BUSCA_LIMITE_IP` por 10 min (padrão 10). O IP vem de `CF-Connecting-IP`, e só é confiado quando `CONFIAR_CLOUDFLARE=true`.
@@ -426,20 +444,28 @@ Evento privado nunca é acessível pelo slug.
    SET LOCAL hnsw.iterative_scan = relaxed_order;
    SELECT r.id_foto, r.id_rosto, 1 - (r.embedding <=> ?::vector) AS similaridade
      FROM rosto r
+     JOIN foto f ON f.id_foto = r.id_foto AND f.situacao = 'visivel'
     WHERE r.id_evento = ?
     ORDER BY r.embedding <=> ?::vector
     LIMIT 400;
    COMMIT;
    ```
 
+   Fotos ocultas ficam fora pelo `JOIN`; a busca iterativa compensa o filtro.
+
    A busca iterativa mantém o recall com vários eventos no mesmo índice. O plano B, documentado em `docs/`, é um índice parcial por evento (`CREATE INDEX ... WHERE id_evento = N`) criado na abertura do evento.
 6. **Agrupamento:** `agruparResultados(listas, limiar)`, função pura. Une as listas, fica com a maior similaridade por foto (guardando o `id_rosto` desse melhor match), filtra por `>= limiar` e ordena por similaridade desc (desempate por `id_foto` asc).
 7. **Gravação:** grava `busca` + `busca_foto`. Os embeddings das selfies existem só na memória da requisição.
-8. **Status inicial:**
-   - `liberada` se o evento não exige WhatsApp ou se `chave_aparelho` for válida para o evento. Nesse caso liga `id_participante`.
-   - Senão `aguardando`, com `codigo` de 5 dígitos aleatório, único entre as buscas aguardando (nova tentativa em caso de colisão), expirando em 30 min.
+8. **Status inicial** (função pura `decidirStatusBusca`, na ordem):
+   - **Nenhuma foto encontrada:** `liberada` com `qtd_fotos = 0`, sem código e sem pedir nada. Não liga participante nem gera `chave_aparelho`.
+   - **Evento não exige WhatsApp:** `liberada`.
+   - **`chave_aparelho` válida para o evento:** `liberada`, ligando o `id_participante` do aparelho.
+   - **`token_origem` de uma busca `liberada`, do mesmo evento, dentro da validade e com `id_participante` preenchido:** `liberada`, com o mesmo `id_participante` e `id_busca_origem` apontando para ela. Uma busca de origem sem participante (por exemplo, a de zero fotos) não dispensa a verificação; sem isso, uma busca vazia viraria atalho para pular o WhatsApp.
+   - **Senão:** `aguardando`, com `codigo` de 5 dígitos aleatório, único entre as buscas aguardando (nova tentativa em caso de colisão), expirando em 30 min.
 
 **Resposta:** `{ token, status, qtd_fotos, previas: [urls assinadas], codigo?, whatsapp_numero? }`. Com `status = aguardando`, nenhum thumb nem web é exposto.
+
+O "buscar de novo" passa pelo mesmo limite de taxa por IP.
 
 ### Verificação pelo WhatsApp (Cloud API oficial)
 
@@ -462,7 +488,8 @@ Evento privado nunca é acessível pelo slug.
 
 ### Resultados: `_PARTICIPANTE/resultado`
 
-- `getResultado { token }`: dados do evento, validade e lista de fotos com thumbs assinados. Só funciona para busca `liberada` e dentro da validade.
+- `getResultado { token }`: dados do evento (com os patrocinadores), validade e lista de fotos visíveis com thumbs assinados. Só funciona para busca `liberada` e dentro da validade.
+- **"Buscar de novo":** as fotos chegam ao longo do evento, e o resultado é o do momento da busca. A página de resultados mostra o aviso "novas fotos chegam durante o evento" e o botão, que abre a câmera e chama `busca.buscar` com `token_origem`. O participante vai para o novo `/r/<token>`.
 - `gerarLinks { token, ids, tipo: 'web' }`: URLs assinadas de download (`?dl=1` → `Content-Disposition: attachment`). Incrementa `busca.qtd_downloads`.
 - `pedirZip { token }`: cria `arquivo_zip` e enfileira `zip`. `situacaoZip` para acompanhar.
 - **Botão principal no celular: "Salvar / Compartilhar",** com `navigator.share({ files })` quando `canShare` aceita. Senão, cai para download individual.
@@ -477,12 +504,12 @@ Evento privado nunca é acessível pelo slug.
 
 ### Anfitrião: `_ANFITRIAO/galeria`
 
-- `getGaleria { chave, offset }`: `LIMIT 60 OFFSET ?`, ordenada por `capturada_em` e com filtro por fotógrafo.
+- `getGaleria { chave, offset }`: só fotos visíveis, `LIMIT 60 OFFSET ?`, ordenada por `capturada_em` e com filtro por fotógrafo.
 - `pedirZip { chave, id_evento_fotografo? }`: ZIPs em partes de até 500 fotos.
 
 ### ZIP (worker `zip`)
 
-- Stream com `archiver`, em modo *store*, sem recomprimir JPEG, de `/data/fotos` para `/data/zips/<id_evento>/<id_arquivo_zip>.zip`.
+- Stream com `archiver`, em modo *store*, sem recomprimir JPEG, de `/data/fotos` para `/data/zips/<id_evento>/<id_arquivo_zip>.zip`. Só entram fotos visíveis.
 - Expira em 7 dias ou no expurgo, o que vier primeiro.
 - Se a busca tem participante verificado, avisa pelo WhatsApp.
 
@@ -495,6 +522,22 @@ Evento privado nunca é acessível pelo slug.
   - Devolve a tabela e o limiar de maior F2.
   - O recall é relativo às fotos corretas encontradas acima de 0.25; as abaixo disso são invisíveis. Essa limitação é mostrada na tela.
 - **`aplicarLimiar`:** grava em `evento.config.limiar`.
+
+### Patrocinadores (admin)
+
+- `_ADMIN/patrocinador.salvarPatrocinador` (multipart: `id_evento`, `nome`, `site?`, logo PNG/JPEG/SVG até 1 MB). O logo é normalizado com sharp para PNG de até 400 px no lado maior e gravado em `/data/patrocinadores/...`.
+- `listarPatrocinadores { id_evento }`, `removerPatrocinador { id_evento_patrocinador }`, `ordenarPatrocinadores { id_evento, ids }`.
+- O nginx serve `/patrocinadores/...` **sem** link assinado (não é dado pessoal), e a Cloudflare pode fazer cache.
+- As páginas do participante recebem a lista de patrocinadores (nome, URL do logo, site) junto com os dados do evento.
+- No expurgo, os logos ficam: não são dado pessoal e o evento continua existindo no admin.
+
+### Moderação de fotos (admin)
+
+- `_ADMIN/foto.listarFotos { id_evento, id_evento_fotografo?, situacao?, offset }`: grade paginada com thumbs assinados.
+- `ocultarFoto { id_foto }` / `mostrarFoto { id_foto }`: alterna entre `visivel` e `oculta`.
+- `excluirFoto { id_foto }`: pede confirmação na tela. Apaga os arquivos em `/data/fotos`, os `rosto`, `numero_peito` e `busca_foto` da foto, e marca `excluida`. Os originais na estação não são tocados.
+- Toda ação grava no `log`.
+- Serve para foto imprópria, pedido do fotógrafo ou pedido de alguém que não quer uma foto específica publicada.
 
 ## 9. Frontends
 
@@ -512,8 +555,10 @@ Chama a API na mesma origem (`/api`). Funciona igual pelo IP da LAN e pelo túne
 
 | Tela | Conteúdo |
 |---|---|
-| `e/[slug]`, `p/[chave]` | Consentimento → câmera (`getUserMedia`, `facingMode: 'user'`, moldura oval) ou galeria → 1 a 3 selfies → buscando → prévia + WhatsApp → resultados. |
-| `r/[token]` | Grade de thumbs, seleção múltipla, salvar/compartilhar, baixar, baixar todas (ZIP), "disponível até dd/mm". |
+| `e/[slug]`, `p/[chave]` | Consentimento → câmera (`getUserMedia`, `facingMode: 'user'`, moldura oval) ou galeria → 1 a 3 selfies → buscando → prévia + WhatsApp → resultados. Com zero fotos: "ainda não encontramos fotos suas, volte mais tarde", sem pedir nada. |
+| `r/[token]` | Grade de thumbs, seleção múltipla, salvar/compartilhar, baixar, baixar todas (ZIP), "disponível até dd/mm", aviso "novas fotos chegam durante o evento" e botão **Buscar de novo**. |
+
+Nas telas do evento e de resultados, uma faixa com os logos dos patrocinadores, na ordem definida no admin. O logo leva ao site, quando houver.
 | `a/[chave]` | Galeria do anfitrião. |
 | `privacidade` | Termo completo, como excluir os dados, contato. |
 
@@ -523,7 +568,8 @@ Chama a API na mesma origem (`/api`). Funciona igual pelo IP da LAN e pelo túne
 |---|---|
 | `login` | Login do operador. |
 | `eventos` | Lista de eventos. |
-| `eventos/[id]` | Dados e `config`, upload da marca d'água, links e QR codes (evento/privado, anfitrião), vínculo de fotógrafos com link e QR de upload. |
+| `eventos/[id]` | Dados e `config`, upload da marca d'água, patrocinadores (enviar logo, nome, site, ordem, remover), links e QR codes (evento/privado, anfitrião), vínculo de fotógrafos com link e QR de upload. |
+| `eventos/[id]/fotos` | Grade das fotos com filtro por fotógrafo e situação; ocultar, mostrar e excluir. |
 | `fotografos` | Cadastro. |
 | `engajamento` | Por evento: buscas, buscas com resultado, verificados (telefones únicos), conversão (verificados ÷ buscas com resultado), downloads, ZIPs, leads com marketing, exportação CSV (nome, telefone, data, evento). Depois do expurgo, lê `evento_resumo`. |
 | `calibracao` | Tela da seção 8. |
@@ -562,6 +608,11 @@ Chama a API na mesma origem (`/api`). Funciona igual pelo IP da LAN e pelo túne
 
 ## 11. Deploy e operação
 
+- **Estação no local do evento:**
+  - **Rede local:** roteador Wi-Fi dedicado (de preferência com cabo para a estação). Os fotógrafos entram pelo IP da LAN com o link ou QR de upload.
+  - **Internet:** upload de pelo menos 10 Mbps para publicar na VPS (~16 GB por evento de 20 mil fotos, algumas horas no total). Um roteador 4G/5G serve de reserva. Sem internet, a estação continua recebendo e processando; a publicação espera na fila.
+  - **Energia:** nobreak para a estação e o roteador.
+  - **Antes de sair para o evento:** subir a estação com internet para ela sincronizar eventos, fotógrafos e operadores. Ela guarda essa cópia e funciona mesmo se chegar ao local sem internet.
 - **Estação (`docker-compose.estacao.yml`):**
   - `vision` com GPU (`deploy.resources.reservations.devices: nvidia`).
   - Volumes `/data/originais`, `/data/uploads`, `/data/publicar` e cache TensorRT.
@@ -570,7 +621,7 @@ Chama a API na mesma origem (`/api`). Funciona igual pelo IP da LAN e pelo túne
 - **VPS (`docker-compose.vps.yml`):**
   - Traefik com certificado de origem da Cloudflare (SSL "Full (strict)").
   - Hosts: `DOMINIO_PARTICIPANTE` e `DOMINIO_ADMIN`. A API fica em `/api` nos dois hosts.
-  - Volumes `/data/fotos`, `/data/zips`, `/data/marcas`, `/data/backups`, mais o volume `selfies` em tmpfs.
+  - Volumes `/data/fotos`, `/data/zips`, `/data/marcas`, `/data/patrocinadores`, `/data/backups`, mais o volume `selfies` em tmpfs.
   - O firewall aceita 80/443 só dos IPs da Cloudflare (documentado, opcional).
 - **Backup:** `pg_dump` diário da VPS em `/data/backups`, mantendo 7 dias. Cópia externa documentada como responsabilidade do operador.
 - **Dev (`docker-compose.dev.yml`):**
@@ -592,6 +643,7 @@ A vazão real é definida no benchmark.
 
 - **Funções puras** (`node:test`):
   - `agruparResultados`: união, máximo por foto, limiar exato (`>=`), empates, listas vazias;
+  - `decidirStatusBusca`: zero fotos, evento sem WhatsApp, `chave_aparelho`, `token_origem` válido, `token_origem` sem participante (não dispensa), de outro evento ou vencido;
   - `sugerirLimiar`: tabela, F2, amostras sem acertos;
   - lógica do offset do upload;
   - fila de upload do cliente: concorrência, backoff, pausa;
@@ -599,7 +651,7 @@ A vazão real é definida no benchmark.
   - assinatura de link no formato do nginx;
   - seleção de eventos para expurgo;
   - geração de código único.
-- **Integração** (`integracao/`, banco real): consulta pgvector com dois eventos no mesmo índice, upsert de `publicarFoto` (idempotência), expurgo de um evento, exclusão por telefone.
+- **Integração** (`integracao/`, banco real): consulta pgvector com dois eventos no mesmo índice e com foto oculta, upsert de `publicarFoto` (idempotência e foto excluída ignorada), exclusão de foto, expurgo de um evento, exclusão por telefone.
 - **vision-service** (pytest): rotação EXIF, filtros de tamanho e score, validações da selfie com imagens de exemplo, falha de inicialização sem CUDA (provider simulado).
 
 ## 13. Fases de implementação
@@ -618,7 +670,8 @@ Cada fase tem plano próprio e só começa com o OK do usuário.
    - módulos `_ADMIN` de login, evento e fotógrafo só como API (usados via `.http`), mais a CLI `npm run criar-operador` para o primeiro acesso;
    - métricas e `benchmark-pipeline.ts`.
 4. **Busca na VPS:**
-   - `buscar`, agrupamento e testes;
+   - `buscar` (com zero fotos e "buscar de novo"), agrupamento e testes;
+   - patrocinadores e moderação de fotos como API;
    - WhatsApp (webhook, códigos, SAIR/EXCLUIR);
    - resultados e links assinados;
    - ZIP;
@@ -647,6 +700,7 @@ Cada fase tem plano próprio e só começa com o OK do usuário.
 |---|---|
 | Lote no detector `det_10g` | Medir na fase 2; re-exportar com lote dinâmico se for gargalo. |
 | Hardware da estação de produção | Não informado. Benchmark roda na 4070 agora e na produção depois. |
+| Internet no local do evento | Local de prova costuma ter internet fraca. Sem ela as fotos são processadas, mas só chegam ao participante quando a conexão volta. Levar link principal + 4G/5G de reserva e testar o upload no checklist pré-evento. |
 | Configuração da VPS | Não informada. Dimensionar a busca na CPU com ela. |
 | WhatsApp Business | Verificação da empresa, número dedicado e app na Meta levam dias. Iniciar antes da fase 4. |
 | Termo LGPD | Revisão jurídica antes do primeiro evento. |
