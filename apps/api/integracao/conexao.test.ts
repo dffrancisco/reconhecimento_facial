@@ -1,4 +1,4 @@
-import { test, describe, before, after } from "node:test";
+import { test, describe, before, beforeEach, after } from "node:test";
 import assert from "node:assert";
 import { iniciarConfig } from "../src/services/config";
 import ConexaoPostgres, { fecharBanco } from "../src/db/conexaoPostgres";
@@ -21,9 +21,27 @@ async function contar(): Promise<number> {
     return linha?.n ?? -1;
 }
 
+// Confirma que nenhuma transação da suíte ficou pendurada no servidor (não só na conexão local).
+async function transacoesPendentes(): Promise<number> {
+    const c = new ConexaoPostgres();
+    await c.open();
+    const linha = await c.queryOneParam<{ n: number }>(
+        `SELECT count(*)::int AS n FROM pg_stat_activity
+         WHERE application_name = 'fotos-api:vps' AND state LIKE 'idle in transaction%'`,
+        []
+    );
+    await c.close();
+    return linha?.n ?? -1;
+}
+
 before(async () => {
     iniciarConfig(envTeste("vps"));
     await executar(`CREATE TABLE IF NOT EXISTS ${TABELA} (x int)`);
+});
+
+beforeEach(async () => {
+    // Cada teste começa com a tabela vazia, para não depender do que o teste anterior deixou.
+    await executar(`TRUNCATE ${TABELA}`);
 });
 
 after(async () => {
@@ -48,7 +66,7 @@ describe("ConexaoPostgres com banco real", () => {
         await assert.rejects(c.queryParam("SELECT * FROM tabela_que_nao_existe", []));
         await c.close();
 
-        assert.strictEqual(await contar(), 1);
+        assert.strictEqual(await contar(), 0);
     });
 
     test("reabrir com transação aberta desfaz a anterior", async () => {
@@ -58,7 +76,10 @@ describe("ConexaoPostgres com banco real", () => {
         await c.openTransaction();
         await c.close();
 
-        assert.strictEqual(await contar(), 1);
+        assert.strictEqual(await contar(), 0);
+        // Garante que a transação foi mesmo desfeita no servidor, não só descartada pelo cliente
+        // local (que poderia acertar por acaso se o pool entregasse outra conexão física).
+        assert.strictEqual(await transacoesPendentes(), 0);
     });
 
     test("queryOneParam sem linha devolve undefined", async () => {
