@@ -42,6 +42,7 @@ class PicoVram:
 def medir(motor, caminhos, lote, config):
     tempos = {"deteccao": 0.0, "reconhecimento": 0.0}
     decodificacao = []
+    espera = []
 
     def decodificar_medindo(caminho):
         inicio = time.perf_counter()
@@ -53,9 +54,17 @@ def medir(motor, caminhos, lote, config):
     inicio = time.perf_counter()
     with ThreadPoolExecutor(config.decode_threads) as pool:
         # O map decodifica à frente enquanto a GPU processa o lote atual, como no serviço.
+        # A latência por chamada (decodificacao) se sobrepõe entre as threads e com a
+        # inferência; só a espera pelo próximo item do map entra no caminho crítico.
         imagens = pool.map(decodificar_medindo, caminhos)
         pendentes = []
-        for imagem in imagens:
+        while True:
+            inicio_espera = time.perf_counter()
+            try:
+                imagem = next(imagens)
+            except StopIteration:
+                break
+            espera.append(time.perf_counter() - inicio_espera)
             pendentes.append(imagem)
             if len(pendentes) == lote:
                 rostos += sum(len(r) for r in motor.detectar_lote(pendentes, tempos))
@@ -67,6 +76,7 @@ def medir(motor, caminhos, lote, config):
     n = len(caminhos)
     return {
         "fotos_s": n / total,
+        "espera_decode_ms": 1000 * sum(espera) / n,
         "decode_ms": 1000 * sum(decodificacao) / n,
         "deteccao_ms": 1000 * tempos["deteccao"] / n,
         "reconhecimento_ms": 1000 * tempos["reconhecimento"] / n,
@@ -89,8 +99,11 @@ def main():
 
     base = carregar_config({**os.environ, "VISION_MODO": "gpu"})
     print(f"{len(caminhos)} fotos de {args.pasta}\n")
-    print("| det_size | lote | fotos/s | decodificação ms/foto | detecção ms/foto | reconhecimento ms/foto | rostos/foto | pico VRAM MB |")
-    print("|---|---|---|---|---|---|---|---|")
+    print(
+        "| det_size | lote | fotos/s | espera pela decodificação ms/foto | detecção ms/foto | "
+        "reconhecimento ms/foto | decodificação ms/foto (por thread) | rostos/foto | pico VRAM MB |"
+    )
+    print("|---|---|---|---|---|---|---|---|---|")
     for det_size in (int(v) for v in args.det_sizes.split(",")):
         config = dataclasses.replace(base, det_size=det_size)
         motor = carregar_motor(config)
@@ -99,8 +112,8 @@ def main():
             with PicoVram() as vram:
                 r = medir(motor, caminhos, lote, config)
             print(
-                f"| {det_size} | {lote} | {r['fotos_s']:.1f} | {r['decode_ms']:.1f} | {r['deteccao_ms']:.1f} | "
-                f"{r['reconhecimento_ms']:.1f} | {r['rostos_por_foto']:.1f} | {vram.pico} |"
+                f"| {det_size} | {lote} | {r['fotos_s']:.1f} | {r['espera_decode_ms']:.1f} | {r['deteccao_ms']:.1f} | "
+                f"{r['reconhecimento_ms']:.1f} | {r['decode_ms']:.1f} | {r['rostos_por_foto']:.1f} | {vram.pico} |"
             )
 
 
