@@ -5,3 +5,6 @@ dist/
 .env.vps
 infra/certs/*
 !infra/certs/.gitkeep
+__pycache__/
+.pytest_cache/
+dados/

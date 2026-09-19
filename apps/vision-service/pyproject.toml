@@ -1,0 +1,6 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = [
+    "modelos: usa os modelos buffalo_l reais (roda em CPU na imagem de teste)",
+]
