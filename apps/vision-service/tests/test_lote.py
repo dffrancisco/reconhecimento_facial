@@ -111,6 +111,57 @@ def test_enviar_sem_iniciar():
         rodar(cenario())
 
 
+def test_parar_durante_processamento_libera_quem_esperava():
+    def processar(itens):
+        time.sleep(0.3)
+        return itens
+
+    async def cenario():
+        lote = MicroLote(processar, lote_max=1, espera_s=0.01)
+        await lote.iniciar()
+        tarefa_envio = asyncio.create_task(lote.enviar("x"))
+        await asyncio.sleep(0.05)  # garante que o lote já foi para a thread de processamento
+        await lote.parar()
+        with pytest.raises(RuntimeError, match="MicroLote parado"):
+            await asyncio.wait_for(tarefa_envio, timeout=1)
+
+    rodar(cenario())
+
+
+def test_parar_durante_montagem_do_lote_libera_quem_esperava():
+    async def cenario():
+        lote = MicroLote(lambda itens: itens, lote_max=5, espera_s=5.0)
+        await lote.iniciar()
+        tarefa_envio = asyncio.create_task(lote.enviar("x"))
+        await asyncio.sleep(0.05)  # item já saiu da fila e _juntar está esperando o segundo item chegar
+        await lote.parar()
+        with pytest.raises(RuntimeError, match="MicroLote parado"):
+            await asyncio.wait_for(tarefa_envio, timeout=1)
+
+    rodar(cenario())
+
+
+def test_parar_libera_itens_que_ainda_estao_na_fila():
+    def processar(itens):
+        time.sleep(0.3)
+        return itens
+
+    async def cenario():
+        lote = MicroLote(processar, lote_max=1, espera_s=0.01)
+        await lote.iniciar()
+        tarefa_1 = asyncio.create_task(lote.enviar("primeiro"))
+        await asyncio.sleep(0.05)  # primeiro item já está sendo processado na thread
+        tarefa_2 = asyncio.create_task(lote.enviar("segundo"))
+        await asyncio.sleep(0.01)  # segundo item ficou parado na fila, nunca chegou a entrar num lote
+        await lote.parar()
+        with pytest.raises(RuntimeError, match="MicroLote parado"):
+            await asyncio.wait_for(tarefa_2, timeout=1)
+        with pytest.raises(RuntimeError, match="MicroLote parado"):
+            await asyncio.wait_for(tarefa_1, timeout=1)
+
+    rodar(cenario())
+
+
 def test_tamanho_da_fila():
     async def cenario():
         lote = MicroLote(lambda itens: itens, lote_max=1, espera_s=0.01)

@@ -27,6 +27,11 @@ class MicroLote:
             self._tarefa.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await self._tarefa
+            # Itens que nunca chegaram a entrar num lote: sobraram na fila quando a tarefa foi cancelada.
+            while self._fila is not None and not self._fila.empty():
+                _, futuro = self._fila.get_nowait()
+                if not futuro.done():
+                    futuro.set_exception(RuntimeError("MicroLote parado"))
         self._executor.shutdown(wait=False)
 
     async def enviar(self, item):
@@ -36,18 +41,28 @@ class MicroLote:
         await self._fila.put((item, futuro))
         return await futuro
 
+    def _resolver_erro(self, lote: list, erro: Exception) -> None:
+        for _, futuro in lote:
+            if not futuro.done():
+                futuro.set_exception(erro)
+
     async def _juntar(self) -> list:
         loop = asyncio.get_running_loop()
         lote = [await self._fila.get()]
         limite = loop.time() + self._espera_s
-        while len(lote) < self._lote_max:
-            restante = limite - loop.time()
-            if restante <= 0:
-                break
-            try:
-                lote.append(await asyncio.wait_for(self._fila.get(), restante))
-            except asyncio.TimeoutError:
-                break
+        try:
+            while len(lote) < self._lote_max:
+                restante = limite - loop.time()
+                if restante <= 0:
+                    break
+                try:
+                    lote.append(await asyncio.wait_for(self._fila.get(), restante))
+                except asyncio.TimeoutError:
+                    break
+        except asyncio.CancelledError:
+            # parar() cancelou enquanto o lote ainda estava sendo montado: quem já saiu da fila precisa de resposta.
+            self._resolver_erro(lote, RuntimeError("MicroLote parado"))
+            raise
         return lote
 
     async def _rodar(self) -> None:
@@ -57,10 +72,12 @@ class MicroLote:
             itens = [item for item, _ in lote]
             try:
                 resultados = await loop.run_in_executor(self._executor, self._processar, itens)
+            except asyncio.CancelledError:
+                # parar() cancelou com o lote já entregue à thread de inferência.
+                self._resolver_erro(lote, RuntimeError("MicroLote parado"))
+                raise
             except Exception as erro:
-                for _, futuro in lote:
-                    if not futuro.done():
-                        futuro.set_exception(erro)
+                self._resolver_erro(lote, erro)
                 continue
             for (_, futuro), resultado in zip(lote, resultados):
                 if not futuro.done():
