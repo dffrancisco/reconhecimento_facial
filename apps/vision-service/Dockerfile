@@ -35,6 +35,7 @@ COPY tests tests
 CMD ["python", "-m", "pytest", "-q", "-rs"]
 
 FROM base AS final
+COPY benchmark.py .
 RUN useradd --create-home --uid 1000 vision
 USER vision
 EXPOSE 8000

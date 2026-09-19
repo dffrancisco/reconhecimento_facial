@@ -57,3 +57,13 @@ A chamada fica `POST /api/<area>/<modulo>` com `{ "call": "<metodo>", ... }`.
 O `--env-file` é obrigatório nos composes da estação e da VPS: é dele que saem `PORTA_LAN`, os domínios e as portas usados nas regras do Traefik.
 
 A API encerra na inicialização se faltar alguma variável obrigatória do papel e mostra a lista do que falta.
+
+## vision-service (Python)
+
+```bash
+npm run test:vision                                                   # testes, em CPU, dentro da imagem de teste
+docker compose -f docker-compose.dev.yml --profile gpu up -d --build  # sobe o vision-gpu (8001) e o vision-cpu (8002)
+curl -s localhost:8001/health
+```
+
+O vision na GPU precisa do `nvidia-container-toolkit` no host. A pasta `dados/` (fora do git) aparece dentro do `vision-gpu` como `/data/dados`, para testes manuais e para o benchmark (`docs/benchmark-vision.md`).
