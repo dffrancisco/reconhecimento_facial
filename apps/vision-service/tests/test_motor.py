@@ -1,7 +1,8 @@
 import numpy as np
 import pytest
 
-from app.motor import DETECTOR, RECONHECEDOR, ErroInicializacao, carregar_motor, providers_do_modo
+from app import motor as motor_mod
+from app.motor import DETECTOR, RECONHECEDOR, ErroInicializacao, Motor, carregar_motor, providers_do_modo
 from tests.auxiliares import config_teste
 
 
@@ -17,9 +18,19 @@ class ModeloFalso:
     def __init__(self, providers):
         self.session = SessaoFalsa(providers)
         self.preparado = None
+        self.chamadas_detect = []
+        self.chamadas_get_feat = []
 
     def prepare(self, ctx_id, **kwargs):
         self.preparado = {"ctx_id": ctx_id, **kwargs}
+
+    def detect(self, pixels, input_size):
+        self.chamadas_detect.append(input_size)
+        return np.zeros((0, 5), np.float32), np.zeros((0, 5, 2), np.float32)
+
+    def get_feat(self, recortes):
+        self.chamadas_get_feat.append(len(recortes))
+        return np.zeros((len(recortes), 512), np.float32)
 
 
 def fabrica_com(ativos):
@@ -103,6 +114,15 @@ def test_modelo_ausente(tmp_path):
         carregar_motor(config, fabrica=fabrica_com(["CPUExecutionProvider"]))
 
 
+def test_carregar_motor_aquece_detector_e_reconhecedor(modelos_vazios):
+    config = config_teste(VISION_MODELOS_DIR=modelos_vazios)
+
+    motor = carregar_motor(config, fabrica=fabrica_com(["CPUExecutionProvider"]))
+
+    assert motor.detector.chamadas_detect == [(motor.tamanho, motor.tamanho)]
+    assert motor.reconhecedor.chamadas_get_feat == [1]
+
+
 def test_detectar_lote_vazio_nao_chama_o_reconhecedor(modelos_vazios):
     motor = carregar_motor(config_teste(VISION_MODELOS_DIR=modelos_vazios), fabrica=fabrica_com(["CPUExecutionProvider"]))
 
@@ -115,3 +135,18 @@ def test_detectar_lote_vazio_nao_chama_o_reconhecedor(modelos_vazios):
     from app.imagem import ImagemDecodificada
 
     assert motor.detectar_lote([ImagemDecodificada(np.zeros((10, 10, 3), np.uint8), 10, 10, 1.0)]) == [[]]
+
+
+def test_embeddings_com_norma_zero_nao_vira_nan(monkeypatch):
+    monkeypatch.setattr(motor_mod.face_align, "norm_crop", lambda pixels, kps: pixels)
+
+    class ReconhecedorZero:
+        def get_feat(self, recortes):
+            return np.zeros((len(recortes), 512), np.float32)
+
+    motor = Motor(config_teste(), detector=None, reconhecedor=ReconhecedorZero(), tamanho=640)
+
+    [vetor] = motor._embeddings([(np.zeros((4, 4, 3), np.uint8), np.zeros((5, 2), np.float32))])
+
+    assert not np.isnan(vetor).any()
+    assert np.array_equal(vetor, np.zeros(512, np.float32))

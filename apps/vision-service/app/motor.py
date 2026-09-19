@@ -86,7 +86,9 @@ class Motor:
             for i in range(0, len(recortes), LOTE_RECONHECIMENTO)
         ]
         vetores = np.concatenate(partes).astype(np.float32)
-        return vetores / np.linalg.norm(vetores, axis=1, keepdims=True)
+        # Norma zero (reconhecedor devolveu tudo zero) geraria NaN, que o pgvector rejeitaria com erro sem relação óbvia.
+        norma = np.maximum(np.linalg.norm(vetores, axis=1, keepdims=True), 1e-12)
+        return vetores / norma
 
     def detectar_lote(self, imagens: list[ImagemDecodificada], tempos: dict | None = None) -> list[list[Rosto]]:
         inicio = time.perf_counter()
@@ -122,7 +124,23 @@ class Motor:
         }
 
 
-def carregar_motor(config: Config, fabrica=get_model) -> Motor:
+def _aquecer(motor: Motor) -> None:
+    inicio = time.perf_counter()
+    imagem_sintetica = np.zeros((motor.tamanho, motor.tamanho, 3), np.uint8)
+    motor.detector.detect(imagem_sintetica, input_size=(motor.tamanho, motor.tamanho))
+    # Imagem sintética não tem rosto: aquece o reconhecedor à parte, com um recorte 112x112 qualquer.
+    recorte = np.zeros((112, 112, 3), np.uint8)
+    motor.reconhecedor.get_feat([recorte])
+    log.info("[Vision] Aquecimento concluído em %.1fs", time.perf_counter() - inicio)
+
+
+def carregar_motor(config: Config, fabrica=get_model, aquecer: bool = True) -> Motor:
+    import onnxruntime
+
+    # Os wheels nvidia-* não ficam no loader path; o preload do ORT registra CUDA/cuDNN.
+    if hasattr(onnxruntime, "preload_dlls"):
+        onnxruntime.preload_dlls()
+
     nomes, opcoes = providers_do_modo(config)
     modelos = {}
     for chave, arquivo in (("detector", DETECTOR), ("reconhecedor", RECONHECEDOR)):
@@ -141,4 +159,6 @@ def carregar_motor(config: Config, fabrica=get_model) -> Motor:
 
     motor = Motor(config, modelos["detector"], modelos["reconhecedor"], tamanho)
     log.info("[Vision] Modo %s, det_size %s, providers %s", config.modo, tamanho, motor.providers)
+    if aquecer:
+        _aquecer(motor)
     return motor

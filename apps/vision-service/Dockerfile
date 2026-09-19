@@ -35,10 +35,14 @@ COPY tests tests
 CMD ["python", "-m", "pytest", "-q", "-rs"]
 
 FROM base AS final
+# compute -> libcuda (CUDAExecutionProvider); utility -> NVML (usado em /health).
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
 COPY benchmark.py .
-RUN useradd --create-home --uid 1000 vision
+RUN useradd --create-home --uid 1000 vision \
+    && mkdir -p /cache/tensorrt \
+    && chown vision /cache/tensorrt
 USER vision
 EXPOSE 8000
 HEALTHCHECK --interval=15s --timeout=5s --start-period=60s --retries=3 \
-    CMD python -c "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health').status == 200 else 1)"
+    CMD python -c "import os, sys, urllib.request; porta = os.environ.get('VISION_PORTA', '8000'); sys.exit(0 if urllib.request.urlopen(f'http://127.0.0.1:{porta}/health').status == 200 else 1)"
 CMD ["python", "-m", "app.main"]
