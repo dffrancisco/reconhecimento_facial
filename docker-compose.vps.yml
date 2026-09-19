@@ -64,7 +64,27 @@ services:
       - traefik.http.routers.api.tls=true
       - traefik.http.services.api.loadbalancer.server.port=3000
     restart: unless-stopped
+    volumes:
+      - selfies:/data/selfies
+
+  vision:
+    build:
+      context: ./apps/vision-service
+      target: final
+    environment:
+      VISION_MODO: selfie-cpu
+      VISION_RAIZES: /data/selfies
+      SELFIE_CONCORRENCIA: ${SELFIE_CONCORRENCIA:-}
+    volumes:
+      - selfies:/data/selfies
+    restart: unless-stopped
 
 volumes:
   pg-vps:
   redis-vps:
+  # Selfies só existem durante a busca (spec §10): tmpfs, nunca em disco.
+  selfies:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: "size=256m,uid=1000"

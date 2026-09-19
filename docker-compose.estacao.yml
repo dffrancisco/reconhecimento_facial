@@ -56,6 +56,29 @@ services:
       - traefik.http.services.api.loadbalancer.server.port=3000
     restart: unless-stopped
 
+  vision:
+    build:
+      context: ./apps/vision-service
+      target: final
+      args:
+        ORT: onnxruntime-gpu[cuda,cudnn]==1.30.0
+    environment:
+      VISION_MODO: gpu
+      VISION_RAIZES: /data/originais
+    volumes:
+      - originais:/data/originais:ro
+      - cache-tensorrt:/cache/tensorrt
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+
 volumes:
   pg-estacao:
   redis-estacao:
+  originais:
+  cache-tensorrt:

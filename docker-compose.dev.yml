@@ -1,6 +1,7 @@
 # Desenvolvimento: os dois papéis na mesma máquina.
 # Só a infraestrutura:  docker compose -f docker-compose.dev.yml up -d postgres redis
-# Tudo:                 docker compose -f docker-compose.dev.yml up -d --build
+# Tudo (sem GPU):       docker compose -f docker-compose.dev.yml up -d --build
+# Com o vision na GPU:  docker compose -f docker-compose.dev.yml --profile gpu up -d --build
 name: fotos-dev
 
 services:
@@ -77,6 +78,47 @@ services:
     depends_on:
       migrate-vps: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
+    volumes:
+      - selfies:/data/selfies
+
+  vision-gpu:
+    profiles: ["gpu"]
+    build:
+      context: ./apps/vision-service
+      target: final
+      args:
+        ORT: onnxruntime-gpu[cuda,cudnn]==1.30.0
+    environment:
+      VISION_MODO: gpu
+    volumes:
+      - ./dados:/data/dados:ro
+    ports:
+      - "127.0.0.1:8001:8000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  vision-cpu:
+    build:
+      context: ./apps/vision-service
+      target: final
+    environment:
+      VISION_MODO: selfie-cpu
+      VISION_RAIZES: /data/selfies
+    volumes:
+      - selfies:/data/selfies
+    ports:
+      - "127.0.0.1:8002:8000"
 
 volumes:
   pg-dev:
+  # Selfies só existem durante a busca (spec §10): tmpfs, nunca em disco.
+  selfies:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: "size=256m,uid=1000"
