@@ -88,10 +88,13 @@ def criar_app(config: Config, motor, gpu_info=ler_gpu) -> FastAPI:
 
             async def uma(caminho: str) -> dict:
                 if not caminho_permitido(caminho, config.raizes):
-                    return {"caminho": caminho, "erro": "caminho fora da área permitida", "rostos": []}
+                    erro = "caminho fora da área permitida"
+                    log.warning("[Vision] %s: %s", caminho, erro)
+                    return {"caminho": caminho, "erro": erro, "rostos": []}
                 try:
                     imagem = await loop.run_in_executor(decode_pool, decodificar, caminho, config.decode_min_lado)
                 except ErroImagem as erro:
+                    log.warning("[Vision] %s: %s", caminho, erro)
                     return {"caminho": caminho, "erro": str(erro), "rostos": []}
                 rostos = await lote.enviar(imagem)
                 return {

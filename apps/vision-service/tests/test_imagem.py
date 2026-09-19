@@ -97,8 +97,9 @@ def test_arquivo_que_nao_e_jpeg(tmp_path):
     caminho = tmp_path / "texto.jpg"
     caminho.write_bytes(b"isto nao e um jpeg")
 
-    with pytest.raises(ErroImagem, match="não é um JPEG válido"):
+    with pytest.raises(ErroImagem, match="não é um JPEG válido") as excinfo:
         decodificar(str(caminho), 2048)
+    assert excinfo.value.__cause__ is not None
 
 
 def test_arquivo_inexistente(tmp_path):

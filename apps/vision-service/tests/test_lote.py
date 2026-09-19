@@ -103,6 +103,23 @@ def test_continua_depois_de_um_erro():
     assert rodar(cenario()) == "y"
 
 
+def test_processar_com_menos_resultados_nao_trava_o_restante():
+    def processar(itens):
+        return itens[:-1]  # falta um resultado: zip truncaria e deixaria o último pendurado
+
+    async def cenario():
+        lote = MicroLote(processar, lote_max=4, espera_s=0.05)
+        await lote.iniciar()
+        resultados = await asyncio.gather(*(lote.enviar(i) for i in range(3)), return_exceptions=True)
+        await lote.parar()
+        return resultados
+
+    resultados = rodar(cenario())
+    assert resultados[:2] == [0, 1]
+    assert isinstance(resultados[2], RuntimeError)
+    assert "MicroLote" in str(resultados[2])
+
+
 def test_enviar_sem_iniciar():
     async def cenario():
         await MicroLote(lambda itens: itens, lote_max=1, espera_s=0.01).enviar(1)
@@ -160,6 +177,17 @@ def test_parar_libera_itens_que_ainda_estao_na_fila():
             await asyncio.wait_for(tarefa_1, timeout=1)
 
     rodar(cenario())
+
+
+def test_enviar_depois_de_parar_recusa():
+    async def cenario():
+        lote = MicroLote(lambda itens: itens, lote_max=1, espera_s=0.01)
+        await lote.iniciar()
+        await lote.parar()
+        await lote.enviar("x")
+
+    with pytest.raises(RuntimeError, match="MicroLote parado"):
+        rodar(cenario())
 
 
 def test_tamanho_da_fila():

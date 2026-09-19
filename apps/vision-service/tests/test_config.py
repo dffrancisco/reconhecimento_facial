@@ -72,6 +72,12 @@ def test_recusa_real_invalido():
         carregar_config({"VISION_MODO": "gpu", "SELFIE_DET_SCORE_MIN": "alto"})
 
 
+@pytest.mark.parametrize("valor", ["inf", "-inf", "nan"])
+def test_recusa_real_nao_finito(valor):
+    with pytest.raises(ErroConfig, match="SELFIE_DET_SCORE_MIN deve ser um número >= 0"):
+        carregar_config({"VISION_MODO": "gpu", "SELFIE_DET_SCORE_MIN": valor})
+
+
 def test_det_size_precisa_ser_multiplo_de_32():
     with pytest.raises(ErroConfig, match="VISION_DET_SIZE deve ser múltiplo de 32"):
         carregar_config({"VISION_MODO": "gpu", "VISION_DET_SIZE": "1000"})

@@ -1,3 +1,4 @@
+import math
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -51,7 +52,8 @@ def _real(env: Mapping[str, str], nome: str, padrao: float) -> float:
         numero = float(valor)
     except ValueError:
         numero = -1.0
-    if numero < 0:
+    # "inf" e "nan" passam no float() e escapariam do "< 0" (nan não é maior nem menor que nada).
+    if not math.isfinite(numero) or numero < 0:
         raise ErroConfig(f"{nome} deve ser um número >= 0 (recebido: {valor!r})")
     return numero
 

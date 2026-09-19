@@ -77,8 +77,8 @@ def decodificar(caminho: str, min_lado: int | None) -> ImagemDecodificada:
         largura, altura, _, _ = jpeg.decode_header(dados)
         fator = (1, 1) if min_lado is None else escolher_fator(largura, altura, min_lado, jpeg.scaling_factors)
         pixels = jpeg.decode(dados, scaling_factor=fator)
-    except Exception:
-        raise ErroImagem("arquivo não é um JPEG válido") from None
+    except Exception as erro:
+        raise ErroImagem("arquivo não é um JPEG válido") from erro
 
     orientacao = _orientacao(dados)
     pixels = aplicar_orientacao(pixels, orientacao)

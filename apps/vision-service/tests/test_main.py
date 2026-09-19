@@ -1,3 +1,5 @@
+import logging
+
 import numpy as np
 import pytest
 from fastapi.testclient import TestClient
@@ -73,6 +75,16 @@ def test_detect_responde_na_ordem_com_erro_por_imagem(pasta):
     assert fora["erro"] == "caminho fora da área permitida"
     assert (b["largura"], b["altura"]) == (100, 200)
     assert sum(motor.lotes) == 2
+
+
+def test_detect_loga_falha_por_imagem(pasta, caplog):
+    with caplog.at_level(logging.WARNING, logger="vision"):
+        with cliente("gpu", pasta) as c:
+            c.post("/detect", json={"caminhos": [str(pasta / "ruim.jpg"), "/etc/passwd"]})
+
+    mensagens = [r.getMessage() for r in caplog.records]
+    assert any(str(pasta / "ruim.jpg") in m and "não é um JPEG válido" in m for m in mensagens)
+    assert any("/etc/passwd" in m and "fora da área permitida" in m for m in mensagens)
 
 
 def test_detect_valida_a_entrada(pasta):

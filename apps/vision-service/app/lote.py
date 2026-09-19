@@ -1,7 +1,10 @@
 import asyncio
 import contextlib
+import logging
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
+
+log = logging.getLogger("vision")
 
 
 class MicroLote:
@@ -11,6 +14,7 @@ class MicroLote:
         self._espera_s = espera_s
         self._fila: asyncio.Queue | None = None
         self._tarefa: asyncio.Task | None = None
+        self._parado = False
         # Uma thread só: a GPU processa um lote por vez e o event loop segue livre para decodificar e receber.
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="inferencia")
 
@@ -21,8 +25,17 @@ class MicroLote:
     async def iniciar(self) -> None:
         self._fila = asyncio.Queue()
         self._tarefa = asyncio.create_task(self._rodar())
+        self._tarefa.add_done_callback(self._logar_erro_inesperado)
+
+    def _logar_erro_inesperado(self, tarefa: asyncio.Task) -> None:
+        if tarefa.cancelled():
+            return
+        erro = tarefa.exception()
+        if erro is not None:
+            log.error("[Vision] MicroLote encerrou com erro inesperado: %s", erro)
 
     async def parar(self) -> None:
+        self._parado = True
         if self._tarefa:
             self._tarefa.cancel()
             with contextlib.suppress(asyncio.CancelledError):
@@ -37,6 +50,8 @@ class MicroLote:
     async def enviar(self, item):
         if self._fila is None:
             raise RuntimeError("MicroLote não iniciado")
+        if self._parado:
+            raise RuntimeError("MicroLote parado")
         futuro = asyncio.get_running_loop().create_future()
         await self._fila.put((item, futuro))
         return await futuro
@@ -79,6 +94,11 @@ class MicroLote:
             except Exception as erro:
                 self._resolver_erro(lote, erro)
                 continue
-            for (_, futuro), resultado in zip(lote, resultados):
-                if not futuro.done():
-                    futuro.set_result(resultado)
+            for indice, (_, futuro) in enumerate(lote):
+                if futuro.done():
+                    continue
+                if indice < len(resultados):
+                    futuro.set_result(resultados[indice])
+                else:
+                    # processar() devolveu menos itens do que recebeu: sem isso o zip truncava e deixava o item pendurado.
+                    futuro.set_exception(RuntimeError("MicroLote: processamento não retornou resultado para este item"))
