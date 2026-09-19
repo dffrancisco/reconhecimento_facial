@@ -6,6 +6,7 @@ Uso (dentro do container vision-gpu):
 
 import argparse
 import dataclasses
+import gc
 import glob
 import os
 import threading
@@ -52,23 +53,27 @@ def medir(motor, caminhos, lote, config):
 
     rostos = 0
     inicio = time.perf_counter()
+    # Fatia de 4*lote: decodifica à frente só o suficiente para não ficar esperando a GPU,
+    # sem segurar todas as imagens decodificadas do diretório inteiro em memória de uma vez.
+    tamanho_fatia = 4 * lote
     with ThreadPoolExecutor(config.decode_threads) as pool:
-        # O map decodifica à frente enquanto a GPU processa o lote atual, como no serviço.
-        # A latência por chamada (decodificacao) se sobrepõe entre as threads e com a
-        # inferência; só a espera pelo próximo item do map entra no caminho crítico.
-        imagens = pool.map(decodificar_medindo, caminhos)
         pendentes = []
-        while True:
-            inicio_espera = time.perf_counter()
-            try:
-                imagem = next(imagens)
-            except StopIteration:
-                break
-            espera.append(time.perf_counter() - inicio_espera)
-            pendentes.append(imagem)
-            if len(pendentes) == lote:
-                rostos += sum(len(r) for r in motor.detectar_lote(pendentes, tempos))
-                pendentes = []
+        for inicio_fatia in range(0, len(caminhos), tamanho_fatia):
+            # O map decodifica à frente dentro da fatia enquanto a GPU processa o lote atual, como no serviço.
+            # A latência por chamada (decodificacao) se sobrepõe entre as threads e com a
+            # inferência; só a espera pelo próximo item do map entra no caminho crítico.
+            imagens = pool.map(decodificar_medindo, caminhos[inicio_fatia : inicio_fatia + tamanho_fatia])
+            while True:
+                inicio_espera = time.perf_counter()
+                try:
+                    imagem = next(imagens)
+                except StopIteration:
+                    break
+                espera.append(time.perf_counter() - inicio_espera)
+                pendentes.append(imagem)
+                if len(pendentes) == lote:
+                    rostos += sum(len(r) for r in motor.detectar_lote(pendentes, tempos))
+                    pendentes = []
         if pendentes:
             rostos += sum(len(r) for r in motor.detectar_lote(pendentes, tempos))
     total = time.perf_counter() - inicio
@@ -97,6 +102,12 @@ def main():
     if not caminhos:
         raise SystemExit(f"Nenhum JPEG em {args.pasta}")
 
+    det_sizes = [int(v) for v in args.det_sizes.split(",")]
+    # O SCRFD trabalha com strides 8/16/32 (mesma regra de app/config.py): outro tamanho quebra a grade de âncoras.
+    invalidos = [d for d in det_sizes if d % 32]
+    if invalidos:
+        raise SystemExit(f"--det-sizes deve conter múltiplos de 32 (recebido: {invalidos})")
+
     base = carregar_config({**os.environ, "VISION_MODO": "gpu"})
     print(f"{len(caminhos)} fotos de {args.pasta}\n")
     print(
@@ -104,7 +115,12 @@ def main():
         "reconhecimento ms/foto | decodificação ms/foto (por thread) | rostos/foto | pico VRAM MB |"
     )
     print("|---|---|---|---|---|---|---|---|---|")
-    for det_size in (int(v) for v in args.det_sizes.split(",")):
+    motor = None
+    for det_size in det_sizes:
+        if motor is not None:
+            # Sem isso, a sessão ONNX do det_size anterior segue viva e infla o pico de VRAM da próxima linha.
+            del motor
+            gc.collect()
         config = dataclasses.replace(base, det_size=det_size)
         motor = carregar_motor(config)
         medir(motor, caminhos[:5], 1, config)  # aquecimento: cria as sessões e aloca a VRAM
