@@ -36,6 +36,33 @@ function argumento(nome: string): string | undefined {
     return idx >= 0 ? process.argv[idx + 1] : undefined;
 }
 
+// readline não tem opção nativa para ocultar o que é digitado. O truque conhecido de sobrescrever
+// `_writeToOutput` só existe na interface legada de callback de `node:readline` — a interface de
+// `node:readline/promises` (usada aqui) não expõe esse método (verificado em runtime). Em vez
+// disso, interceptamos o `write` do stream de saída: deixamos a pergunta em si passar normalmente
+// e suprimimos tudo que o readline escrever depois disso (o eco de cada tecla e o \n do Enter),
+// restaurando o `write` original assim que a resposta chega.
+async function perguntarSenha(pergunta: string): Promise<string> {
+    const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: true });
+    const escritaOriginal = process.stdout.write.bind(process.stdout);
+    let mascarando = false;
+    process.stdout.write = ((chunk: unknown, ...args: unknown[]): boolean => {
+        if (mascarando) return true;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return (escritaOriginal as any)(chunk, ...args);
+    }) as typeof process.stdout.write;
+
+    try {
+        const resposta = rl.question(pergunta);
+        mascarando = true;
+        return await resposta;
+    } finally {
+        process.stdout.write = escritaOriginal;
+        rl.close();
+        process.stdout.write("\n");
+    }
+}
+
 async function main(): Promise<void> {
     const nome = argumento("nome");
     const login = argumento("login");
@@ -45,9 +72,7 @@ async function main(): Promise<void> {
     }
 
     iniciarConfig(process.env);
-    const rl = createInterface({ input: process.stdin, output: process.stdout });
-    const senha = await rl.question("Senha: ");
-    rl.close();
+    const senha = await perguntarSenha("Senha: ");
     if (senha.length < 8) {
         console.error("[CriarOperador] A senha deve ter pelo menos 8 caracteres.");
         process.exit(1);
