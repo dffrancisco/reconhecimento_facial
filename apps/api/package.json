@@ -9,7 +9,8 @@
         "start": "node dist/index.js",
         "typecheck": "tsc -p tsconfig.json",
         "test": "tsx --test $(find src -name '*.test.ts')",
-        "test:integracao": "tsx --test --test-concurrency=1 $(find integracao -name '*.test.ts')"
+        "test:integracao": "tsx --test --test-concurrency=1 $(find integracao -name '*.test.ts')",
+        "criar-operador": "tsx src/scripts/criarOperador.ts"
     },
     "dependencies": {
         "dotenv": "^17.4.2",
