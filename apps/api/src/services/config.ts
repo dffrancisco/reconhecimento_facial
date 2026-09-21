@@ -8,12 +8,13 @@ export interface iConfig {
     estacaoChave: string;
     vpsUrl: string;
     arquivoSegredo: string;
+    operadorSegredo: string;
 }
 
 const OBRIGATORIAS: Record<"comum" | tPapel, string[]> = {
     comum: ["POSTGRES_HOST", "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB", "REDIS_URL", "ESTACAO_CHAVE"],
     estacao: ["VPS_URL"],
-    vps: ["ARQUIVO_SEGREDO"],
+    vps: ["ARQUIVO_SEGREDO", "OPERADOR_SEGREDO"],
 };
 
 const helper = {
@@ -38,6 +39,10 @@ export function carregarConfig(env: NodeJS.ProcessEnv): iConfig {
     const estacaoChave = env.ESTACAO_CHAVE as string;
     if (estacaoChave.length < 32) throw new Error("[Config] ESTACAO_CHAVE deve ter pelo menos 32 caracteres");
 
+    const operadorSegredo = env.OPERADOR_SEGREDO ?? "";
+    if (papel === "vps" && operadorSegredo.length < 32)
+        throw new Error("[Config] OPERADOR_SEGREDO deve ter pelo menos 32 caracteres");
+
     return {
         papel,
         porta: helper.numero(env.PORTA, 3000, "PORTA"),
@@ -55,6 +60,7 @@ export function carregarConfig(env: NodeJS.ProcessEnv): iConfig {
         estacaoChave,
         vpsUrl: env.VPS_URL ?? "",
         arquivoSegredo: env.ARQUIVO_SEGREDO ?? "",
+        operadorSegredo,
     };
 }
 
