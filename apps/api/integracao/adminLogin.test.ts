@@ -49,7 +49,7 @@ before(async () => {
 test("login com senha certa devolve token válido", async () => {
     const res = resFalso();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await per({ body: { call: "login", login, senha: "senha-correta" } } as any, res as any, () => {}, Login);
+    await per({ headers: {}, body: { call: "login", login, senha: "senha-correta" } } as any, res as any, () => {}, Login);
 
     const corpo = res.chamadas.body as { token: string; nome: string; id_operador: number };
     assert.strictEqual(corpo.nome, "Operadora");
@@ -59,7 +59,7 @@ test("login com senha certa devolve token válido", async () => {
 test("login com senha errada devolve 422", async () => {
     const res = resFalso();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await per({ body: { call: "login", login, senha: "senha-errada" } } as any, res as any, () => {}, Login);
+    await per({ headers: {}, body: { call: "login", login, senha: "senha-errada" } } as any, res as any, () => {}, Login);
 
     assert.strictEqual(res.chamadas.status, 422);
 });
@@ -67,7 +67,12 @@ test("login com senha errada devolve 422", async () => {
 test("login com usuário inexistente devolve 422 com a mesma mensagem (não vaza quem existe)", async () => {
     const res = resFalso();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await per({ body: { call: "login", login: "ninguem-aqui", senha: "qualquer" } } as any, res as any, () => {}, Login);
+    await per(
+        { headers: {}, body: { call: "login", login: "ninguem-aqui", senha: "qualquer" } } as any,
+        res as any,
+        () => {},
+        Login
+    );
 
     assert.strictEqual(res.chamadas.status, 422);
     assert.strictEqual((res.chamadas.body as { msg: string }).msg, "Login ou senha inválidos.");

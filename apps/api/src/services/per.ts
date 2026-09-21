@@ -52,7 +52,7 @@ export default async function per(
 
     let rota: iRota | undefined;
     try {
-        rota = new Classe({ authorization: req.headers?.authorization });
+        rota = new Classe({ authorization: req.headers.authorization });
         await rota.init();
         const metodo = (rota as unknown as Record<string, (req: Request) => Promise<unknown>>)[call];
         responder(res, await metodo.call(rota, req));
