@@ -1,9 +1,16 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert";
+import fs from "node:fs/promises";
+import { mkdtempSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import sharp from "sharp";
 import ConexaoPostgres from "../src/db/conexaoPostgres";
-import { iniciarConfig } from "../src/services/config";
+import { config, iniciarConfig } from "../src/services/config";
 import EventoCtrl from "../src/_ADMIN/evento/ctrl.evento";
 import { ErroTratado } from "../src/services/erro";
+
+const raizMarcasTeste = mkdtempSync(path.join(os.tmpdir(), "marcas-teste-"));
 
 before(() => {
     iniciarConfig({
@@ -17,6 +24,7 @@ before(() => {
         ESTACAO_CHAVE: "a".repeat(32),
         ARQUIVO_SEGREDO: "x",
         OPERADOR_SEGREDO: "a".repeat(32),
+        RAIZ_MARCAS: raizMarcasTeste,
     });
 });
 
@@ -62,6 +70,42 @@ test("recusa slug inválido", async () => {
     );
 });
 
+test("subirMarcaDagua com PNG válido grava o arquivo em config.raizMarcas", async () => {
+    const evento = await ctrl.criarEvento({ nome: "Marca A", slug: `marca-${Date.now()}`, tipo: "esportivo", data_fim: "2026-12-31" });
+    const png = await sharp({ create: { width: 10, height: 10, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+        .png()
+        .toBuffer();
+
+    const resultado = await ctrl.subirMarcaDagua(evento.id_evento, { data: png, mimetype: "image/png", size: png.length });
+    assert.deepStrictEqual(resultado, { ok: true });
+
+    const caminho = path.join(config.raizMarcas, `${evento.id_evento}.png`);
+    const info = await fs.stat(caminho);
+    assert.ok(info.isFile());
+    assert.ok(info.size > 0);
+});
+
+test("subirMarcaDagua recusa mimetype que não é PNG", async () => {
+    const evento = await ctrl.criarEvento({ nome: "Marca B", slug: `marca-b-${Date.now()}`, tipo: "esportivo", data_fim: "2026-12-31" });
+    const falsoPng = Buffer.from("não é um png de verdade");
+
+    await assert.rejects(
+        () => ctrl.subirMarcaDagua(evento.id_evento, { data: falsoPng, mimetype: "image/jpeg", size: falsoPng.length }),
+        ErroTratado
+    );
+});
+
+test("subirMarcaDagua recusa arquivo maior que 2 MB", async () => {
+    const evento = await ctrl.criarEvento({ nome: "Marca C", slug: `marca-c-${Date.now()}`, tipo: "esportivo", data_fim: "2026-12-31" });
+    const grande = Buffer.alloc(2 * 1024 * 1024 + 1);
+
+    await assert.rejects(
+        () => ctrl.subirMarcaDagua(evento.id_evento, { data: grande, mimetype: "image/png", size: grande.length }),
+        ErroTratado
+    );
+});
+
 after(async () => {
     await conexao?.close();
+    await fs.rm(raizMarcasTeste, { recursive: true, force: true });
 });
