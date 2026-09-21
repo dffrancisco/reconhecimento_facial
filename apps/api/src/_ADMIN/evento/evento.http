@@ -1,0 +1,53 @@
+@vps = http://localhost:3002
+@token = COLE_O_TOKEN_DO_LOGIN_AQUI
+
+### Criar evento
+POST {{vps}}/api/admin/evento
+Content-Type: application/json
+Authorization: {{token}}
+
+{
+    "call": "criarEvento",
+    "nome": "Corrida da Serra 2026",
+    "slug": "corrida-da-serra-2026",
+    "tipo": "esportivo",
+    "data_fim": "2026-11-01"
+}
+
+### Listar eventos
+POST {{vps}}/api/admin/evento
+Content-Type: application/json
+Authorization: {{token}}
+
+{ "call": "listarEventos" }
+
+### Editar config
+POST {{vps}}/api/admin/evento
+Content-Type: application/json
+Authorization: {{token}}
+
+{
+    "call": "editarEvento",
+    "id_evento": 1,
+    "config": { "limiar": 0.45, "marca_dagua": true }
+}
+
+### Subir a marca d'água (REST Client: selecione o arquivo local)
+POST {{vps}}/api/admin/evento
+Authorization: {{token}}
+Content-Type: multipart/form-data; boundary=----limite
+
+------limite
+Content-Disposition: form-data; name="call"
+
+subirMarcaDagua
+------limite
+Content-Disposition: form-data; name="id_evento"
+
+1
+------limite
+Content-Disposition: form-data; name="logo"; filename="marca.png"
+Content-Type: image/png
+
+< ./marca.png
+------limite--

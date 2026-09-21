@@ -9,6 +9,7 @@ export interface iConfig {
     vpsUrl: string;
     arquivoSegredo: string;
     operadorSegredo: string;
+    raizMarcas: string;
 }
 
 const OBRIGATORIAS: Record<"comum" | tPapel, string[]> = {
@@ -61,6 +62,7 @@ export function carregarConfig(env: NodeJS.ProcessEnv): iConfig {
         vpsUrl: env.VPS_URL ?? "",
         arquivoSegredo: env.ARQUIVO_SEGREDO ?? "",
         operadorSegredo,
+        raizMarcas: env.RAIZ_MARCAS || "/data/marcas",
     };
 }
 
