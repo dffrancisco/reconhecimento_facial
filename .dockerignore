@@ -6,3 +6,4 @@ infra/certs
 .env
 .env.*
 **/.env
+dados

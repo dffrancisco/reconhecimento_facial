@@ -107,3 +107,38 @@ O script faz a busca real, lê o resultado, baixa um thumb pelo nginx (`127.0.0.
 ```sql
 UPDATE evento SET config = config || '{"exigir_whatsapp":false}'::jsonb WHERE slug = '<slug>';
 ```
+
+## Tela do participante
+
+Em desenvolvimento, com recarregamento automático:
+
+```bash
+npm run dev -w apps/web-participante     # http://localhost:5173
+npm run test -w apps/web-participante    # Vitest + Vue Test Utils, sem API no ar
+```
+
+O Vite encaminha `/api` para a API (3002) e `/arquivos` para o nginx (8080), então a tela
+funciona numa origem só.
+
+Servida como em produção (o build roda dentro da imagem do nginx, que também entrega as fotos):
+
+```bash
+docker compose -f docker-compose.dev.yml up -d --build arquivos   # http://localhost:8080
+```
+
+Em produção o Traefik manda `/api` para a API; em desenvolvimento quem faz isso é o
+`infra/nginx/dev-api.conf`, que o compose de dev monta no nginx. Por isso `:8080` também
+serve a tela inteira, busca incluída.
+
+Para ter um evento com fotos, rode antes `npm run demo-evento` (ver acima) e abra o link
+que ele imprime: `http://localhost:8080/#/e/<slug>`, ou `/#/p/<chave_acesso>` se o evento
+for privado. A galeria do anfitrião fica em `/#/a/<chave_anfitriao>`.
+
+**No celular:** a câmera do navegador só abre em contexto seguro (`localhost` ou HTTPS).
+Pelo IP da máquina na rede local (`http://<ip>:5173`, o endereço que o Vite imprime) a tela
+cai no caminho "Escolher da galeria" — que também é um caminho real a testar. Para testar
+a câmera no celular, é preciso HTTPS (por exemplo, um túnel).
+
+A selfie precisa ter um rosto só: foto em grupo volta com "Encontramos mais de um rosto".
+E a API limita as buscas por IP (10 a cada 10 minutos, `BUSCA_LIMITE_IP`); pelo nginx de
+dev todo pedido chega com o IP do container, então testes seguidos esbarram nesse limite.

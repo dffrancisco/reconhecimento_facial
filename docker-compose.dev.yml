@@ -135,12 +135,13 @@ services:
       redis: { condition: service_healthy }
 
   arquivos:
-    build: { context: ./infra/nginx }
+    build: { context: ., dockerfile: infra/nginx/Dockerfile }
     environment:
       ARQUIVO_SEGREDO: dev-somente-local
     volumes:
       - fotos-vps:/data/fotos:ro
       - zips-vps:/data/zips:ro
+      - ./infra/nginx/dev-api.conf:/etc/nginx/extra/api.conf:ro
     ports:
       - "127.0.0.1:8080:80"
     healthcheck:

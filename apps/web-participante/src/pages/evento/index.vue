@@ -49,13 +49,14 @@ function aoEscolher(evento: Event): void {
     <main class="tela-largada flex flex-col">
         <template v-if="state.etapa === 'camera'">
             <div class="relative flex-1 overflow-hidden bg-[#17171c]">
-                <!-- Câmera da frente espelhada, como o celular mostra: a foto enviada não é. -->
+                <!-- Câmera da frente espelhada, como o celular mostra: a foto enviada não é.
+                     Absoluto porque a área só tem min-height: h-full sozinho não a preenche. -->
                 <video
                     ref="video"
                     autoplay
                     playsinline
                     muted
-                    class="h-full w-full object-cover opacity-80"
+                    class="absolute inset-0 h-full w-full object-cover opacity-80"
                     :class="{ '-scale-x-100': state.lado === 'user' }"
                 ></video>
                 <div

@@ -32,6 +32,24 @@ server {
         alias /data/fotos/;
     }
 
+    # Em desenvolvimento o compose monta aqui o encaminhamento de /api (dev-api.conf); em
+    # produção a pasta fica vazia, porque o Traefik faz esse papel.
+    include /etc/nginx/extra/*.conf;
+
+    # O app é uma página só com rotas em hash (#/e/slug): qualquer caminho cai no index.
+    # O index nunca fica em cache — é ele que aponta para os arquivos do build novo; os
+    # arquivos de /assets/ têm hash no nome e podem ficar em cache para sempre.
+    location / {
+        root /usr/share/nginx/html;
+        add_header Cache-Control "no-cache" always;
+        try_files $uri $uri/ /index.html;
+    }
+
+    location /assets/ {
+        root /usr/share/nginx/html;
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+    }
+
     location = /health {
         access_log off;
         return 200 "ok\n";

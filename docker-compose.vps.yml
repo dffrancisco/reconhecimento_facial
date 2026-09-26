@@ -85,7 +85,7 @@ services:
     restart: unless-stopped
 
   arquivos:
-    build: { context: ./infra/nginx }
+    build: { context: ., dockerfile: infra/nginx/Dockerfile }
     environment:
       ARQUIVO_SEGREDO: ${ARQUIVO_SEGREDO}
     volumes:
@@ -93,7 +93,9 @@ services:
       - zips:/data/zips:ro
     labels:
       - traefik.enable=true
-      - traefik.http.routers.arquivos.rule=Host(`${DOMINIO_PARTICIPANTE}`) && PathPrefix(`/arquivos`)
+      # Tudo do domínio do participante que não é /api (regra mais longa, que o Traefik
+      # prioriza): a tela e os /arquivos assinados.
+      - traefik.http.routers.arquivos.rule=Host(`${DOMINIO_PARTICIPANTE}`)
       - traefik.http.routers.arquivos.entrypoints=websecure
       - traefik.http.routers.arquivos.tls=true
       - traefik.http.services.arquivos.loadbalancer.server.port=80
