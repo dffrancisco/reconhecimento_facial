@@ -70,6 +70,30 @@ curl -s localhost:8001/health
 
 O vision na GPU precisa do `nvidia-container-toolkit` no host. A pasta `dados/` (fora do git) aparece dentro do `vision-gpu` como `/data/dados`, para testes manuais e para o benchmark (`docs/benchmark-vision.md`).
 
+## Ver a plataforma inteira funcionando
+
+Um comando faz o evento do começo ao fim — cria no admin, manda as fotos pela estação,
+espera o reconhecimento na GPU, publica na VPS e busca pela sua selfie:
+
+```bash
+docker compose -f docker-compose.dev.yml --profile gpu up -d --build
+npm run demo-evento -- --fotos <pasta com as fotos> --selfie <sua selfie.jpg>
+```
+
+No fim ele imprime links prontos para abrir no navegador: as suas fotos com a porcentagem
+de semelhança, o download em tamanho grande e o ZIP com todas. A chave do anfitrião sai
+junto, para ver o evento inteiro sem selfie:
+
+```bash
+npm run demo-galeria -- --chave <chave_anfitriao>
+```
+
+O primeiro uso precisa de um operador cadastrado:
+
+```bash
+npm run criar-operador -w apps/api -- --nome "Ana" --login ana   # senha: senha-dev-123
+```
+
 ## Busca do participante (fase 4)
 
 Com o compose de dev no ar e um evento já ingerido pela estação:
