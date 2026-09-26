@@ -18,11 +18,13 @@ async function main(): Promise<void> {
     forma.append("slug", slug);
     forma.append("versao_termo", "v1");
     forma.append("aceita_marketing", "N");
-    forma.append("selfies", new Blob([await fs.readFile(selfie)]), path.basename(selfie));
+    // O tipo importa: a rota recusa o que não for imagem, como o navegador sempre envia.
+    const tipo = selfie.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg";
+    forma.append("selfies", new Blob([await fs.readFile(selfie)], { type: tipo }), path.basename(selfie));
 
     const resposta = await fetch(`${base}/api/participante/busca`, { method: "POST", body: forma });
     const busca = (await resposta.json()) as { token?: string; status?: string; qtd_fotos?: number; msg?: string };
-    if (!resposta.ok) throw new Error(`busca falhou (${resposta.status}): ${busca.msg}`);
+    if (!resposta.ok || busca.status === undefined) throw new Error(`busca falhou (${resposta.status}): ${busca.msg}`);
 
     console.log(`Busca ${busca.status} — ${busca.qtd_fotos} foto(s) encontradas.`);
     if (busca.status !== "liberada") {
@@ -59,8 +61,26 @@ async function main(): Promise<void> {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ call: "pedirZip", token: busca.token }),
         });
-        const zip = (await rZip.json()) as { id_arquivo_zip: number };
-        console.log(`ZIP pedido: arquivo ${zip.id_arquivo_zip} (o worker da VPS monta em segundos).`);
+        const zip = (await rZip.json()) as { partes: number[] };
+        console.log(`ZIP pedido: ${zip.partes.length} parte(s) — ids ${zip.partes.join(", ")}.`);
+
+        // Espera a primeira parte ficar pronta e baixa, para provar o caminho inteiro.
+        for (let tentativa = 0; tentativa < 30; tentativa++) {
+            const rSituacao = await fetch(`${base}/api/participante/resultado`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ call: "situacaoZip", token: busca.token, id_arquivo_zip: zip.partes[0] }),
+            });
+            const situacao = (await rSituacao.json()) as { status: string; url?: string };
+            if (situacao.status === "pronto" && situacao.url) {
+                const baixado = await fetch(arquivos + situacao.url);
+                console.log(`ZIP pronto: HTTP ${baixado.status}, ${(await baixado.arrayBuffer()).byteLength} bytes`);
+                return;
+            }
+            if (situacao.status === "erro") throw new Error("o worker não conseguiu montar o ZIP");
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+        console.log("ZIP ainda em montagem depois de 30s.");
     }
 }
 
