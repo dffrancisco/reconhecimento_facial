@@ -1,5 +1,7 @@
 import { reactive } from "vue";
-import { dimensoesReduzidas } from "../../ts/imagem";
+import { router } from "../../router";
+import { dimensoesReduzidas, jpegDoCanvas, reduzirSelfie } from "../../ts/imagem";
+import { buscarPorSelfie } from "./services/evento.service";
 
 export const VERSAO_TERMO = "v1";
 const LADO_MAIOR_ENVIO = 1280;
@@ -14,6 +16,8 @@ export const state = reactive({
     maxSelfies: 3,
     lado: "user" as "user" | "environment",
     fluxo: null as MediaStream | null,
+    slug: "",
+    chaveAcesso: "",
 });
 
 export const actions = {
@@ -63,19 +67,46 @@ export const actions = {
     async disparar(video: HTMLVideoElement): Promise<void> {
         if (!actions.podeDisparar()) return;
 
-        const { largura, altura } = dimensoesReduzidas(video.videoWidth, video.videoHeight, LADO_MAIOR_ENVIO);
-        const tela = document.createElement("canvas");
-        tela.width = largura;
-        tela.height = altura;
-        tela.getContext("2d")?.drawImage(video, 0, 0, largura, altura);
-
-        const pedaco = await new Promise<Blob | null>((resolve) => tela.toBlob(resolve, "image/jpeg", 0.88));
-        if (!pedaco) {
+        const selfie = await jpegDoCanvas(video, dimensoesReduzidas(video.videoWidth, video.videoHeight, LADO_MAIOR_ENVIO));
+        if (!selfie) {
             state.mensagem = "Não conseguimos usar essa foto. Tente de novo.";
             return;
         }
 
-        state.selfies = [...state.selfies, new File([pedaco], "selfie.jpg", { type: "image/jpeg" })].slice(0, state.maxSelfies);
+        state.selfies = [...state.selfies, selfie].slice(0, state.maxSelfies);
+    },
+
+    // Quem negou a câmera só tem a galeria: escolher a foto é o último passo, então a busca
+    // já parte daqui.
+    async usarDaGaleria(arquivos: File[]): Promise<void> {
+        const reduzidas = await Promise.all(arquivos.slice(0, state.maxSelfies).map((arquivo) => reduzirSelfie(arquivo, LADO_MAIOR_ENVIO)));
+        actions.escolherDaGaleria(reduzidas);
+        await actions.buscar();
+    },
+
+    async buscar(): Promise<void> {
+        if (state.selfies.length === 0 || !state.consentiu) return;
+
+        state.etapa = "buscando";
+        state.mensagem = "";
+        try {
+            const resposta = await buscarPorSelfie({
+                slug: state.slug || undefined,
+                chaveAcesso: state.chaveAcesso || undefined,
+                versaoTermo: VERSAO_TERMO,
+                selfies: state.selfies,
+                tokenOrigem: sessionStorage.getItem("busca_anterior") ?? undefined,
+            });
+
+            actions.encerrarCamera();
+            // Mesmo com zero fotos a busca é `liberada`: a tela de resultado é que mostra
+            // o "ainda não achamos você" (spec da plataforma §8).
+            router.push({ name: "resultado", params: { token: resposta.token } });
+        } catch (erro) {
+            // A selfie e o consentimento continuam de pé: "Tentar de novo" reenvia a mesma foto.
+            state.etapa = "erro";
+            state.mensagem = erro instanceof Error ? erro.message : "Não conseguimos completar. Tente de novo.";
+        }
     },
 
     encerrarCamera(): void {
@@ -83,9 +114,12 @@ export const actions = {
         state.fluxo = null;
     },
 
-    tentarDeNovo(): void {
+    // "Tentar outra selfie": com a câmera ainda ligada volta direto para ela; sem câmera,
+    // pedirCamera() leva de novo ao caminho da galeria, com a explicação.
+    async tentarDeNovo(): Promise<void> {
         state.selfies = [];
         state.mensagem = "";
-        state.etapa = "camera";
+        if (state.fluxo) state.etapa = "camera";
+        else await actions.pedirCamera();
     },
 };
