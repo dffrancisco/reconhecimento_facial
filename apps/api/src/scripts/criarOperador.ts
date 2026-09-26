@@ -1,7 +1,7 @@
 import { createInterface } from "node:readline/promises";
 import "../loadEnv";
 import { iniciarConfig } from "../services/config";
-import ConexaoPostgres from "../db/conexaoPostgres";
+import ConexaoPostgres, { fecharBanco } from "../db/conexaoPostgres";
 import { gerarHashSenha } from "../services/senha";
 
 export async function criarOperador(
@@ -85,6 +85,8 @@ async function main(): Promise<void> {
         console.log(`[CriarOperador] Operador ${resultado.criado ? "criado" : "atualizado"}: id_operador=${resultado.id_operador}`);
     } finally {
         await conexao.close();
+        // Sem fechar o pool, o processo só sai quando as conexões ociosas expiram.
+        await fecharBanco();
     }
 }
 

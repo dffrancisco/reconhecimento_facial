@@ -1,5 +1,6 @@
 import { test, before, after, describe } from "node:test";
 import assert from "node:assert";
+import { createHash } from "node:crypto";
 import express from "express";
 import fileUpload from "express-fileupload";
 import { Server } from "node:http";
@@ -50,6 +51,11 @@ before(async () => {
     base = `http://127.0.0.1:${(servidor.address() as AddressInfo).port}`;
 });
 
+// A VPS agora exige SHA-256 em hex: os testes usam hashes do mesmo formato que a estação manda.
+function hashFalso(sufixo: string): string {
+    return createHash("sha256").update(`${sufixo}-${Date.now()}-${Math.random()}`).digest("hex");
+}
+
 function corpoPadrao(hash: string) {
     return {
         id_evento: idEvento,
@@ -77,7 +83,7 @@ async function publicar(hash: string, dados = corpoPadrao(hash)) {
 
 describe("publicarFoto", () => {
     test("grava a foto, os rostos e os 3 arquivos", async () => {
-        const hash = `hash-${Date.now()}`;
+        const hash = hashFalso("basico");
         const r = await publicar(hash);
 
         assert.deepStrictEqual(r.corpo, { ok: true });
@@ -96,8 +102,30 @@ describe("publicarFoto", () => {
         assert.strictEqual(conteudo, "fake-web");
     });
 
+
+    test("hash fora do formato é recusado, sem gravar arquivo fora da raiz", async () => {
+        const fs = await import("node:fs/promises");
+        const base = "/tmp/fotos-teste-escapou";
+        for (const tipo of ["web", "thumb", "previa"]) await fs.rm(`${base}_${tipo}.jpg`, { force: true });
+
+        const dados = corpoPadrao("x");
+        dados.hash_arquivo = "../../../../tmp/fotos-teste-escapou";
+        const r = await publicar(dados.hash_arquivo, dados);
+
+        assert.strictEqual(r.status, 200);
+        assert.ok((r.corpo as { error?: boolean }).error, "deveria ser recusado como erro de negócio");
+        await assert.rejects(() => fs.access(`${base}_web.jpg`));
+    });
+
+    test("id_evento que não é inteiro é recusado", async () => {
+        const dados = corpoPadrao(hashFalso("id-invalido")) as unknown as { id_evento: unknown };
+        dados.id_evento = "1; DROP";
+        const r = await publicar(hashFalso("id-invalido"), dados as never);
+        assert.ok((r.corpo as { error?: boolean }).error);
+    });
+
     test("republicar a mesma foto é idempotente: mesmo id_foto, rostos substituídos", async () => {
-        const hash = `hash-${Date.now()}-repub`;
+        const hash = hashFalso("repub");
         const primeira = await publicar(hash);
         const [antes] = await conexao.queryParam<{ id_foto: number }>("SELECT id_foto FROM foto WHERE id_evento = ? AND hash_arquivo = ?", [
             idEvento,
@@ -118,7 +146,7 @@ describe("publicarFoto", () => {
     });
 
     test("foto excluída ignora o envio e responde ok, sem recriar", async () => {
-        const hash = `hash-${Date.now()}-excluida`;
+        const hash = hashFalso("excluida");
         await publicar(hash);
         const [linha] = await conexao.queryParam<{ id_foto: number }>("SELECT id_foto FROM foto WHERE id_evento = ? AND hash_arquivo = ?", [
             idEvento,
@@ -133,7 +161,7 @@ describe("publicarFoto", () => {
     });
 
     test("republicar não reverte uma foto oculta para visível", async () => {
-        const hash = `hash-${Date.now()}-oculta`;
+        const hash = hashFalso("oculta");
         await publicar(hash);
         await conexao.executeParamCount("UPDATE foto SET situacao = 'oculta' WHERE id_evento = ? AND hash_arquivo = ?", [idEvento, hash]);
 

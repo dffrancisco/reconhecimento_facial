@@ -4,7 +4,7 @@ import { performance } from "node:perf_hooks";
 import { Client } from "pg";
 import "../apps/api/src/loadEnv";
 import { iniciarConfig } from "../apps/api/src/services/config";
-import ConexaoPostgres from "../apps/api/src/db/conexaoPostgres";
+import ConexaoPostgres, { fecharBanco } from "../apps/api/src/db/conexaoPostgres";
 import { calcularHashArquivo } from "../apps/api/src/services/hashArquivo";
 import { criarFila, fecharFila } from "../apps/api/src/services/fila";
 import { DadosProcessarFoto, NOME_FILA } from "../apps/api/src/jobs/processarFoto";
@@ -112,6 +112,7 @@ async function main(): Promise<void> {
 
     await conexao.close();
     await fecharFila();
+    await fecharBanco();
 }
 
 main().catch((erro) => {

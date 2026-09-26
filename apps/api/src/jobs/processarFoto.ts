@@ -8,8 +8,25 @@ import { caminhoMarcaDagua, caminhoOriginal, caminhoPublicar } from "../services
 import { combinarDataExif, lerExif } from "../services/exifFoto";
 import { detectarRostos } from "../services/vision";
 import { criarFila, criarWorker } from "../services/fila";
+import { criarSemaforo } from "../services/semaforo";
 
 const FUSO_PADRAO = "America/Sao_Paulo";
+
+// Spec §7: cada tarefa do sharp usa uma thread só, e o número de tarefas simultâneas é
+// limitado — senão 16 jobs em paralelo tomam a CPU inteira do vision e da API.
+sharp.concurrency(1);
+let semaforoDerivados: ReturnType<typeof criarSemaforo> | undefined;
+function obterSemaforoDerivados(): ReturnType<typeof criarSemaforo> {
+    if (!semaforoDerivados) semaforoDerivados = criarSemaforo(config.sharpConcorrencia);
+    return semaforoDerivados;
+}
+
+// Definitivo é o que não melhora tentando de novo: arquivo que não existe ou é uma pasta.
+// Disco cheio e permissão são passageiros — o operador libera espaço e a fila retoma.
+const ERROS_DE_ARQUIVO_DEFINITIVOS = new Set(["ENOENT", "EISDIR", "ENOTDIR"]);
+export function copiaFalhouDeVez(codigo: unknown): boolean {
+    return typeof codigo === "string" && ERROS_DE_ARQUIVO_DEFINITIVOS.has(codigo);
+}
 export const NOME_FILA = "processar-foto";
 const NOME_FILA_PUBLICAR = "publicar-foto";
 
@@ -58,7 +75,9 @@ async function etapaOriginal(conexao: ConexaoPostgres, idFoto: number, dados: Da
         if (dados.copiar) await fs.copyFile(dados.origem, destino);
         else await fs.rename(dados.origem, destino);
     } catch (erro) {
-        throw new UnrecoverableError(`[ProcessarFoto] não foi possível ler o arquivo de origem: ${(erro as Error).message}`);
+        const mensagem = `[ProcessarFoto] não foi possível ler o arquivo de origem: ${(erro as Error).message}`;
+        if (copiaFalhouDeVez((erro as { code?: unknown }).code)) throw new UnrecoverableError(mensagem);
+        throw new Error(mensagem);
     }
 
     const { largura, altura, bytes } = await tamanhoImagem(destino);
@@ -103,21 +122,51 @@ async function etapaDerivados(conexao: ConexaoPostgres, idFoto: number, idEvento
               .catch(() => false)
         : false;
 
+    // Marca ligada e arquivo ausente: erro passageiro (a sincronização baixa o PNG a cada 60s).
+    // Seguir sem ela publicaria o evento inteiro sem proteção, em silêncio.
+    if (caminhoMarca && !temMarca)
+        throw new Error(`[ProcessarFoto] marca d'água ligada no evento ${idEvento} mas o arquivo ainda não chegou em ${caminhoMarca}`);
+
     const pasta = path.dirname(caminhoPublicar(config.raizPublicar, idEvento, hash, "web"));
     await fs.mkdir(pasta, { recursive: true });
+
+    // Dimensões que o derivado terá, para caber a marca nele: o sharp recusa compor uma imagem
+    // maior que a base, e `withoutEnlargement` faz o derivado parar no tamanho do original.
+    const meta = await sharp(caminhoArquivo).metadata();
+    const girada = (meta.orientation ?? 1) >= 5;
+    const larguraOriginal = (girada ? meta.height : meta.width) ?? 0;
+    const alturaOriginal = (girada ? meta.width : meta.height) ?? 0;
 
     async function gerar(largura: number, qualidade: number, tipo: "web" | "thumb" | "previa", blur?: number): Promise<number> {
         let pipeline = sharp(caminhoArquivo).rotate().resize({ width: largura, fit: "inside", withoutEnlargement: true });
         if (blur) pipeline = pipeline.blur(blur);
-        if (temMarca && caminhoMarca && tipo !== "previa") pipeline = pipeline.composite([{ input: caminhoMarca, gravity: "southeast" }]);
+        if (temMarca && caminhoMarca && tipo !== "previa") {
+            const escala = larguraOriginal > 0 ? Math.min(1, largura / larguraOriginal) : 1;
+            const larguraDerivado = Math.max(1, Math.round((larguraOriginal || largura) * escala));
+            const alturaDerivado = Math.max(1, Math.round((alturaOriginal || largura) * escala));
+            // A marca ocupa no máximo um quarto do derivado, limitada nos dois eixos.
+            const marca = await sharp(caminhoMarca)
+                .resize({
+                    width: Math.max(1, Math.round(larguraDerivado * 0.25)),
+                    height: Math.max(1, Math.round(alturaDerivado * 0.25)),
+                    fit: "inside",
+                    withoutEnlargement: true,
+                })
+                .png()
+                .toBuffer();
+            pipeline = pipeline.composite([{ input: marca, gravity: "southeast" }]);
+        }
         const buffer = await pipeline.jpeg({ quality: qualidade, progressive: true, mozjpeg: true }).toBuffer();
         await fs.writeFile(caminhoPublicar(config.raizPublicar, idEvento, hash, tipo), buffer);
         return buffer.length;
     }
 
-    const bytesWeb = await gerar(2048, 82, "web");
-    await gerar(400, 70, "thumb");
-    await gerar(32, 50, "previa", 20);
+    const bytesWeb = await obterSemaforoDerivados()(async () => {
+        const bytes = await gerar(2048, 82, "web");
+        await gerar(400, 70, "thumb");
+        await gerar(32, 50, "previa", 20);
+        return bytes;
+    });
 
     await conexao.executeParamCount("UPDATE foto SET bytes_web = ?, etapa = 'derivados', processada_em = now() WHERE id_foto = ?", [bytesWeb, idFoto]);
 }

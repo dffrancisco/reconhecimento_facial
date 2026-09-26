@@ -12,14 +12,28 @@ function obterConexao(): Redis {
     return conexao;
 }
 
+// Uma Queue por nome: cada `new Queue` registra listeners na conexão compartilhada e nunca
+// os solta. Criar uma por foto publicada (e duas por sinal, a cada 30s) acumularia milhares
+// num processo de vida longa.
+const filas = new Map<string, Queue>();
+
 export async function fecharFila(): Promise<void> {
+    const abertas = [...filas.values()];
+    filas.clear();
+    await Promise.allSettled(abertas.map((fila) => fila.close()));
+
     const atual = conexao;
     conexao = undefined;
     await atual?.quit();
 }
 
 export function criarFila<T = unknown>(nome: string): Queue<T> {
-    return new Queue<T>(nome, { connection: obterConexao(), prefix: config.redis.prefixo });
+    const existente = filas.get(nome);
+    if (existente) return existente as Queue<T>;
+
+    const fila = new Queue<T>(nome, { connection: obterConexao(), prefix: config.redis.prefixo });
+    filas.set(nome, fila as Queue);
+    return fila;
 }
 
 // 1s, 2s, 4s, ... até o teto — para filas que não podem esperar horas por uma dependência externa.

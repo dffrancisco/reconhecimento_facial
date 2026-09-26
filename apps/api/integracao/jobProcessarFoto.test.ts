@@ -17,6 +17,7 @@ let servidorVision: Server;
 let conexao: ConexaoPostgres;
 let pastaOrigem: string;
 let idEvento: number;
+let ambienteBase: Record<string, string>;
 
 async function criarJpegDeTeste(caminho: string, corSemente: number): Promise<void> {
     await sharp({ create: { width: 200, height: 150, channels: 3, background: { r: corSemente, g: 10, b: 10 } } })
@@ -47,7 +48,7 @@ before(async () => {
 
     pastaOrigem = await fs.mkdtemp(path.join(os.tmpdir(), "processar-foto-teste-"));
 
-    iniciarConfig({
+    ambienteBase = {
         PAPEL: "estacao",
         POSTGRES_HOST: "127.0.0.1",
         POSTGRES_PORT: "5433",
@@ -60,7 +61,8 @@ before(async () => {
         VISION_URL: `http://127.0.0.1:${(servidorVision.address() as AddressInfo).port}`,
         RAIZ_ORIGINAIS: await fs.mkdtemp(path.join(os.tmpdir(), "originais-teste-")),
         RAIZ_PUBLICAR: await fs.mkdtemp(path.join(os.tmpdir(), "publicar-teste-")),
-    });
+    };
+    iniciarConfig(ambienteBase);
 
     conexao = new ConexaoPostgres();
     await conexao.open();
@@ -122,6 +124,33 @@ describe("processarFoto", () => {
         await processarFoto({ id_evento: idEvento, id_evento_fotografo: null, hash_arquivo: hash, nome_arquivo: "mover.jpg", origem, copiar: false });
 
         await assert.rejects(() => fs.access(origem));
+    });
+
+
+    test("marca d'água maior que o thumb não derruba a foto", async () => {
+        const raizMarcas = await fs.mkdtemp(path.join(os.tmpdir(), "marcas-teste-"));
+        iniciarConfig({ ...ambienteBase, RAIZ_MARCAS: raizMarcas });
+
+        const [comMarca] = await conexao.queryParam<{ id_evento: number }>(
+            `INSERT INTO evento (id_evento, nome, slug, tipo, privado, chave_anfitriao, data_fim, config)
+             VALUES ((SELECT COALESCE(MAX(id_evento), 0) + 1 FROM evento), 'Com marca', ?, 'esportivo', 'N', ?, '2026-12-31', ?) RETURNING id_evento`,
+            [`evento-marca-${Date.now()}`, `anfitriao-marca-${Date.now()}`, JSON.stringify({ marca_dagua: true })]
+        );
+        // Logo de tamanho realista: mais largo que o thumb (400px), como qualquer marca de verdade.
+        await sharp({ create: { width: 600, height: 120, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 0.6 } } })
+            .png()
+            .toFile(path.join(raizMarcas, `${comMarca.id_evento}.png`));
+
+        const origem = path.join(pastaOrigem, "com-marca.jpg");
+        await criarJpegDeTeste(origem, 240);
+        const hash = `hash-marca-${Date.now()}`;
+
+        await processarFoto({ id_evento: comMarca.id_evento, id_evento_fotografo: null, hash_arquivo: hash, nome_arquivo: "com-marca.jpg", origem, copiar: true });
+
+        const [foto] = await conexao.queryParam<{ etapa: string }>("SELECT etapa FROM foto WHERE id_evento = ? AND hash_arquivo = ?", [comMarca.id_evento, hash]);
+        assert.strictEqual(foto.etapa, "derivados");
+        for (const tipo of ["web", "thumb", "previa"])
+            await fs.access(path.join(config.raizPublicar, String(comMarca.id_evento), `${hash}_${tipo}.jpg`));
     });
 
     test("erro do vision na própria imagem lança UnrecoverableError", async () => {

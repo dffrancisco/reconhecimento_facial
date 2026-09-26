@@ -11,7 +11,10 @@ function obterPool(): Pool {
             user: config.postgres.usuario,
             password: config.postgres.senha,
             database: config.postgres.banco,
-            max: 20,
+            // O worker roda `processar-foto` (config.workerConcorrencia) e `publicar-foto` em
+            // paralelo, e a etapa de rostos segura um client durante toda a transação: um pool
+            // fixo de 20 estoura quando a concorrência sobe. A folga cobre o sinal e a CLI.
+            max: Math.max(20, config.workerConcorrencia + 8),
             idleTimeoutMillis: 30_000,
             connectionTimeoutMillis: 5_000,
             statement_timeout: 30_000,
@@ -148,10 +151,16 @@ export default class ConexaoPostgres {
 
     async close(): Promise<boolean> {
         let erroTransacao: Error | undefined;
+        let commitFalhou = false;
         try {
             if (this.client && this.emTransacao) {
-                if (this.comErro) await this.rollback();
-                else await this.commit();
+                if (this.comErro) {
+                    await this.rollback();
+                } else {
+                    commitFalhou = true;
+                    await this.commit();
+                    commitFalhou = false;
+                }
             }
         } catch (erro) {
             erroTransacao = erro instanceof Error ? erro : new Error(String(erro));
@@ -159,6 +168,11 @@ export default class ConexaoPostgres {
         } finally {
             await this.liberar(erroTransacao);
         }
+
+        // Um COMMIT que falhou não pode passar por sucesso: quem chamou responderia 200 sobre
+        // dados que não foram gravados. Um ROLLBACK que falha não propaga — já estamos no
+        // caminho de erro e a conexão foi descartada do pool.
+        if (commitFalhou && erroTransacao) throw erroTransacao;
         return true;
     }
 

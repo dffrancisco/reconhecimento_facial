@@ -2,9 +2,9 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import "../loadEnv";
 import { iniciarConfig } from "../services/config";
-import ConexaoPostgres from "../db/conexaoPostgres";
+import ConexaoPostgres, { fecharBanco } from "../db/conexaoPostgres";
 import { calcularHashArquivo } from "../services/hashArquivo";
-import { criarFila } from "../services/fila";
+import { criarFila, fecharFila } from "../services/fila";
 import { DadosProcessarFoto, NOME_FILA } from "../jobs/processarFoto";
 
 const EXTENSOES = new Set([".jpg", ".jpeg"]);
@@ -72,7 +72,11 @@ async function main(): Promise<void> {
         const resultado = await ingerir(conexao, { slug, pasta, idEventoFotografo: fotografoArg ? Number(fotografoArg) : null });
         console.log(`[Ingerir] ${resultado.enfileiradas} fotos enfileiradas para "${slug}" (${resultado.ignoradas} já estavam na fila).`);
     } finally {
+        // A conexão Redis da fila e o pool do Postgres seguram o event loop: sem fechá-los,
+        // o comando imprime o resumo e nunca devolve o terminal.
         await conexao.close();
+        await fecharFila();
+        await fecharBanco();
     }
 }
 

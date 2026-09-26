@@ -1,3 +1,5 @@
+import { cpus } from "node:os";
+
 export type tPapel = "estacao" | "vps";
 
 export interface iConfig {
@@ -15,6 +17,7 @@ export interface iConfig {
     raizPublicar: string;
     visionUrl: string;
     workerConcorrencia: number;
+    sharpConcorrencia: number;
 }
 
 const OBRIGATORIAS: Record<"comum" | tPapel, string[]> = {
@@ -73,6 +76,9 @@ export function carregarConfig(env: NodeJS.ProcessEnv): iConfig {
         raizPublicar: env.RAIZ_PUBLICAR || "/data/publicar",
         visionUrl: env.VISION_URL ?? "",
         workerConcorrencia: helper.numero(env.WORKER_CONCORRENCIA, 16, "WORKER_CONCORRENCIA"),
+        // Spec §7: a etapa `derivados` fica limitada a núcleos - 2, para sobrar CPU para o
+        // vision decodificar e para a API responder.
+        sharpConcorrencia: helper.numero(env.SHARP_CONCORRENCIA, Math.max(1, cpus().length - 2), "SHARP_CONCORRENCIA"),
     };
 }
 

@@ -26,7 +26,19 @@ export default class Foto implements iRota {
         if (!req.body.dados || !web || !thumb || !previa)
             return { msg: "Campos dados, web, thumb e previa são obrigatórios", error: true };
 
-        const dados = JSON.parse(req.body.dados) as DadosPublicarFoto;
+        let dados: DadosPublicarFoto;
+        try {
+            dados = JSON.parse(req.body.dados) as DadosPublicarFoto;
+        } catch {
+            return { msg: "Campo dados não é um JSON válido", error: true };
+        }
+
+        // O hash vira nome de arquivo em disco: aceitar qualquer string deixaria a estação
+        // escrever fora da raiz de fotos (`../../..`). A spec define hash como SHA-256 em hex.
+        if (typeof dados.hash_arquivo !== "string" || !/^[a-f0-9]{64}$/.test(dados.hash_arquivo))
+            return { msg: "hash_arquivo deve ser um SHA-256 em hexadecimal", error: true };
+        if (!Number.isInteger(dados.id_evento)) return { msg: "id_evento inválido", error: true };
+
         return this.ctrl.publicarFoto(dados, { web: web.data, thumb: thumb.data, previa: previa.data });
     }
 }

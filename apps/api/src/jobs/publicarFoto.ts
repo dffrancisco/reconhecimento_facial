@@ -1,5 +1,5 @@
 import fs from "node:fs/promises";
-import { Job } from "bullmq";
+import { Job, UnrecoverableError } from "bullmq";
 import ConexaoPostgres from "../db/conexaoPostgres";
 import { config } from "../services/config";
 import { caminhoPublicar } from "../services/caminhos";
@@ -66,7 +66,15 @@ export async function publicarFoto(dados: DadosPublicarFotoJob): Promise<void> {
 
         for (const tipo of ["web", "thumb", "previa"] as const) {
             const caminho = caminhoPublicar(config.raizPublicar, dados.id_evento, dados.hash_arquivo, tipo);
-            corpo.append(tipo, new Blob([await fs.readFile(caminho)]), `${tipo}.jpg`);
+            try {
+                corpo.append(tipo, new Blob([await fs.readFile(caminho)]), `${tipo}.jpg`);
+            } catch (erro) {
+                // Derivado que não existe não volta a existir tentando de novo por 3 dias:
+                // a foto precisa ser reprocessada, então a falha é definitiva.
+                if ((erro as { code?: string }).code === "ENOENT")
+                    throw new UnrecoverableError(`[PublicarFoto] derivado ausente: ${caminho}`);
+                throw erro;
+            }
         }
 
         await chamarVpsMultipart("/api/estacao/foto", corpo);
@@ -82,6 +90,31 @@ export async function publicarFoto(dados: DadosPublicarFotoJob): Promise<void> {
     }
 }
 
+// Sem isto, uma foto que nunca consegue publicar fica invisível: `foto.erro` vazio e fora
+// da taxa de erro das métricas, parada em `derivados` para sempre.
+async function registrarFalhaPublicacao(dados: DadosPublicarFotoJob, erro: Error): Promise<void> {
+    const conexao = new ConexaoPostgres();
+    await conexao.open();
+    try {
+        await conexao.executeParamCount("UPDATE foto SET erro = ?, erro_etapa = 'publicacao' WHERE id_evento = ? AND hash_arquivo = ?", [
+            erro.message,
+            dados.id_evento,
+            dados.hash_arquivo,
+        ]);
+    } finally {
+        await conexao.close();
+    }
+}
+
 export function iniciarWorkerPublicarFoto(concorrencia = CONCORRENCIA_PADRAO): void {
-    criarWorker<DadosPublicarFotoJob>(NOME_FILA, (job: Job<DadosPublicarFotoJob>) => publicarFoto(job.data), concorrencia);
+    const worker = criarWorker<DadosPublicarFotoJob>(NOME_FILA, (job: Job<DadosPublicarFotoJob>) => publicarFoto(job.data), concorrencia);
+    worker.on("failed", (job, erro) => {
+        if (!job) return;
+        const esgotouTentativas = job.attemptsMade >= (job.opts.attempts ?? 1);
+        if (erro instanceof UnrecoverableError || esgotouTentativas) {
+            registrarFalhaPublicacao(job.data, erro).catch((erroAoGravar) =>
+                console.error(`[PublicarFoto] falha ao gravar o erro de ${job.data.id_evento}:${job.data.hash_arquivo}:`, erroAoGravar)
+            );
+        }
+    });
 }

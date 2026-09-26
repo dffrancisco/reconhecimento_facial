@@ -56,17 +56,24 @@ export async function processarSincronizar(conexao: ConexaoPostgres): Promise<vo
     for (const ev of payload.eventos) {
         if (!ev.marca_dagua_caminho) continue;
         const destino = path.join(config.raizMarcas, `${ev.id_evento}.png`);
+        // O arquivo local carrega o mtime que a VPS informou: comparar os dois é o que faz a
+        // marca trocada chegar aqui. Sem isso, a estação usaria a versão antiga para sempre.
+        const versaoRemota = ev.marca_dagua_em ? new Date(ev.marca_dagua_em).getTime() : null;
         try {
-            await fs.access(destino);
-            continue; // já temos a versão atual em disco
+            const local = await fs.stat(destino);
+            if (versaoRemota === null || Math.abs(local.mtime.getTime() - versaoRemota) < 1000) continue;
         } catch {
-            // segue e baixa
+            // não temos o arquivo: segue e baixa
         }
         try {
             const resposta = await fetch(`${config.vpsUrl}${ev.marca_dagua_caminho}`, { headers: { Authorization: config.estacaoChave } });
             if (!resposta.ok) continue;
             await fs.mkdir(config.raizMarcas, { recursive: true });
             await fs.writeFile(destino, Buffer.from(await resposta.arrayBuffer()));
+            if (versaoRemota !== null) {
+                const quando = new Date(versaoRemota);
+                await fs.utimes(destino, quando, quando);
+            }
         } catch (erro) {
             console.error(`[Sincronizar] Falha ao baixar a marca d'água do evento ${ev.id_evento}:`, (erro as Error).message);
         }

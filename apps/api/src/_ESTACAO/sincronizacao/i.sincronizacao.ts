@@ -20,6 +20,8 @@ export interface LinhaEventoSync {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     config: any;
     marca_dagua_caminho: string | null;
+    // mtime do PNG na VPS: é o que diz à estação que a marca mudou.
+    marca_dagua_em: string | null;
 }
 
 export interface LinhaFotografoSync {
