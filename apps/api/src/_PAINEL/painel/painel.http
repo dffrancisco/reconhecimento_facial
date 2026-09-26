@@ -1,0 +1,15 @@
+@estacao = http://localhost:3001
+@token = COLE_O_TOKEN_DO_LOGIN
+
+### Login do operador (mesma senha do admin)
+POST {{estacao}}/api/painel/login
+Content-Type: application/json
+
+{ "call": "login", "login": "ana", "senha": "senha-dev-123" }
+
+### Situação da estação
+POST {{estacao}}/api/painel/painel
+Content-Type: application/json
+Authorization: {{token}}
+
+{ "call": "getPainel" }

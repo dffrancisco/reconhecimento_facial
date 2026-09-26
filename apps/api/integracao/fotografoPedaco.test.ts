@@ -252,6 +252,8 @@ describe("PUT dos pedaços", () => {
 });
 
 after(async () => {
+    // O banco é o da estação de dev: um evento de teste aberto viraria o "em andamento" do painel.
+    await conexao?.executeParamCount("UPDATE evento SET encerrado_em = now() WHERE id_evento = ? AND encerrado_em IS NULL", [idEvento]);
     const fila = criarFila(NOME_FILA);
     for (const id of jobsCriados) await (await fila.getJob(id))?.remove();
     servidor?.close();

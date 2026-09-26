@@ -6,6 +6,7 @@ import { config } from "../services/config";
 import { chamarVps } from "../services/vpsHttp";
 import { criarFila, criarWorker } from "../services/fila";
 import { PayloadSincronizacao } from "../_ESTACAO/sincronizacao/i.sincronizacao";
+import { registrarSincronizacao } from "../services/sincronizacaoEstacao";
 
 const NOME_FILA = "sincronizar";
 
@@ -81,7 +82,14 @@ export async function processarSincronizar(conexao: ConexaoPostgres): Promise<vo
 }
 
 export function iniciarWorkerSincronizar(): void {
-    criarWorker(NOME_FILA, async () => processarSincronizar(new ConexaoPostgres()), 1);
+    criarWorker(
+        NOME_FILA,
+        async () => {
+            await processarSincronizar(new ConexaoPostgres());
+            await registrarSincronizacao();
+        },
+        1
+    );
 }
 
 export async function agendarSincronizacao(): Promise<Queue> {
