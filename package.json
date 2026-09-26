@@ -6,6 +6,7 @@
     },
     "workspaces": [
         "apps/api",
+        "apps/web-participante",
         "db"
     ],
     "scripts": {

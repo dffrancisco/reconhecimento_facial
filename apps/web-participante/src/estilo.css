@@ -1,0 +1,72 @@
+@import "tailwindcss";
+@plugin "daisyui";
+
+/* Tema Largada (spec do app, §2). Fica em variáveis para o gradiente e os botões
+   não repetirem o mesmo hex em cada tela. */
+:root {
+    --largada-inicio: #ff6b35;
+    --largada-meio: #f7414f;
+    --largada-fim: #c81d5a;
+    --largada-foto: #0e0e12;
+}
+
+/* Em @layer components para que as utilidades do Tailwind (py-8, px-5, w-auto…) valham
+   por cima do tema: CSS fora de camada venceria qualquer utilidade. */
+@layer components {
+    /* Fundo de todas as telas do participante. A área segura do iPhone vira borda transparente,
+       que o gradiente pinta por baixo: assim o padding fica livre para cada tela. */
+    .tela-largada {
+        background: linear-gradient(168deg, var(--largada-inicio) 0%, var(--largada-meio) 52%, var(--largada-fim) 100%);
+        background-origin: border-box;
+        border-top: env(safe-area-inset-top) solid transparent;
+        border-bottom: env(safe-area-inset-bottom) solid transparent;
+        color: #fff;
+        min-height: 100dvh;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+
+    .rotulo {
+        font-size: 0.625rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        font-weight: 700;
+        color: rgb(255 255 255 / 0.82);
+    }
+
+    .titulo {
+        font-size: 1.375rem;
+        font-weight: 800;
+        line-height: 1.12;
+        letter-spacing: -0.02em;
+    }
+
+    .caixa {
+        background: rgb(255 255 255 / 0.14);
+        border-radius: 13px;
+    }
+
+    .pilula {
+        border-radius: 999px;
+        padding: 0.85rem 1rem;
+        font-weight: 800;
+        font-size: 0.9rem;
+        background: #fff;
+        color: var(--largada-fim);
+        width: 100%;
+    }
+
+    .pilula:disabled {
+        background: rgb(255 255 255 / 0.3);
+        color: rgb(255 255 255 / 0.65);
+    }
+
+    .pilula-vazada {
+        border-radius: 999px;
+        padding: 0.85rem 1rem;
+        font-weight: 800;
+        font-size: 0.9rem;
+        background: rgb(255 255 255 / 0.16);
+        color: #fff;
+        width: 100%;
+    }
+}
