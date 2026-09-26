@@ -5,10 +5,12 @@ import per from "../services/per";
 import { autorizarEstacao } from "../services/authEstacao";
 import { config } from "../services/config";
 import Sincronizacao from "../_ESTACAO/sincronizacao/route.sincronizacao";
+import Sinal from "../_ESTACAO/sinal/route.sinal";
 
 const router = Router();
 
 router.post("/sincronizacao", (req, res, next) => per(req, res, next, Sincronizacao));
+router.post("/sinal", (req, res, next) => per(req, res, next, Sinal));
 
 router.get("/marca-dagua/:idEvento", (req, res) => {
     try {

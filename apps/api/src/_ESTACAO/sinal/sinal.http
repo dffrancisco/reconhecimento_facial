@@ -1,0 +1,9 @@
+@vps = http://localhost:3002
+@chave = dev-somente-local-dev-somente-local
+
+### Sinal
+POST {{vps}}/api/estacao/sinal
+Content-Type: application/json
+Authorization: {{chave}}
+
+{ "call": "registrarSinal", "fila": { "processarFoto": 0 }, "fotos_min": 0 }
