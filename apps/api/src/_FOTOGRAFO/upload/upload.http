@@ -18,3 +18,11 @@ POST {{estacao}}/api/fotografo/upload
 Content-Type: application/json
 
 { "call": "statusUpload", "token": "{{token}}" }
+
+### Enviar um pedaço (o corpo é o binário do arquivo a partir do offset)
+PUT {{estacao}}/api/fotografo/upload/1
+Content-Type: application/octet-stream
+X-Token-Upload: {{token}}
+Upload-Offset: 0
+
+< ./IMG_0001.JPG

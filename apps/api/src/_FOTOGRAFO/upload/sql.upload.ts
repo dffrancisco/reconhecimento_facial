@@ -94,3 +94,14 @@ export async function errosDoVinculo(
         [idVinculo]
     );
 }
+
+export async function uploadPorId(conexao: ConexaoPostgres, idUpload: number): Promise<LinhaUpload | undefined> {
+    return conexao.queryOneParam<LinhaUpload>(
+        "SELECT id_upload, id_evento_fotografo, nome_arquivo, tamanho, hash_arquivo, status FROM upload WHERE id_upload = ?",
+        [idUpload]
+    );
+}
+
+export async function marcarStatusUpload(conexao: ConexaoPostgres, idUpload: number, status: "completo" | "cancelado"): Promise<void> {
+    await conexao.executeParamCount("UPDATE upload SET status = ?, updated_at = now() WHERE id_upload = ?", [status, idUpload]);
+}
