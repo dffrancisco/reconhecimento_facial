@@ -18,3 +18,15 @@ POST {{vps}}/api/participante/resultado
 Content-Type: application/json
 
 { "call": "gerarLinks", "token": "{{token}}", "ids": [1, 2] }
+
+### Pedir o ZIP
+POST {{vps}}/api/participante/resultado
+Content-Type: application/json
+
+{ "call": "pedirZip", "token": "{{token}}" }
+
+### Situação do ZIP
+POST {{vps}}/api/participante/resultado
+Content-Type: application/json
+
+{ "call": "situacaoZip", "token": "{{token}}", "id_arquivo_zip": 1 }

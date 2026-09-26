@@ -52,13 +52,34 @@ export async function somarDownloads(conexao: ConexaoPostgres, idBusca: number, 
     await conexao.executeParamCount("UPDATE busca SET qtd_downloads = qtd_downloads + ? WHERE id_busca = ?", [quantos, idBusca]);
 }
 
-export async function criarArquivoZip(conexao: ConexaoPostgres, idEvento: number, idBusca: number): Promise<number> {
+export async function criarArquivoZip(conexao: ConexaoPostgres, idEvento: number, idBusca: number, parte: number): Promise<number> {
     const [linha] = await conexao.queryParam<{ id_arquivo_zip: number }>(
         `INSERT INTO arquivo_zip (id_evento, id_busca, parte, status, expira_em)
-         VALUES (?, ?, 1, 'pendente', now() + interval '7 days') RETURNING id_arquivo_zip`,
-        [idEvento, idBusca]
+         VALUES (?, ?, ?, 'pendente', now() + interval '7 days') RETURNING id_arquivo_zip`,
+        [idEvento, idBusca, parte]
     );
     return linha.id_arquivo_zip;
+}
+
+// Um pedido repetido não pode criar outro ZIP: sem isso, quem tem o token manda pedirZip em
+// laço e o worker enche o disco da VPS.
+export async function zipsValidosDaBusca(conexao: ConexaoPostgres, idBusca: number): Promise<number[]> {
+    const linhas = await conexao.queryParam<{ id_arquivo_zip: number }>(
+        `SELECT id_arquivo_zip FROM arquivo_zip
+          WHERE id_busca = ? AND status <> 'erro' AND expira_em > now()
+          ORDER BY parte`,
+        [idBusca]
+    );
+    return linhas.map((l) => l.id_arquivo_zip);
+}
+
+export async function contarFotosDaBusca(conexao: ConexaoPostgres, idBusca: number): Promise<number> {
+    const [linha] = await conexao.queryParam<{ total: number }>(
+        `SELECT count(*)::int AS total FROM busca_foto bf JOIN foto f ON f.id_foto = bf.id_foto
+          WHERE bf.id_busca = ? AND f.situacao = 'visivel'`,
+        [idBusca]
+    );
+    return linha.total;
 }
 
 export async function zipDaBusca(

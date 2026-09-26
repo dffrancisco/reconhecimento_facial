@@ -5,6 +5,7 @@ import { Server } from "node:http";
 import { AddressInfo } from "node:net";
 import ConexaoPostgres, { fecharBanco } from "../src/db/conexaoPostgres";
 import { iniciarConfig } from "../src/services/config";
+import { fecharFila } from "../src/services/fila";
 import per from "../src/services/per";
 import Resultado from "../src/_PARTICIPANTE/resultado/route.resultado";
 
@@ -159,8 +160,49 @@ describe("gerarLinks", () => {
     });
 });
 
+
+describe("pedirZip", () => {
+    test("pedido repetido devolve o mesmo arquivo, sem montar outro", async () => {
+        // Sem isto, quem tem o token manda pedirZip em laço e enche o disco da VPS.
+        const primeiro = await chamar({ call: "pedirZip", token: tokenLiberado });
+        const segundo = await chamar({ call: "pedirZip", token: tokenLiberado });
+
+        assert.deepStrictEqual(segundo.corpo.partes, primeiro.corpo.partes);
+
+        const [linha] = await conexao.queryParam<{ total: number }>(
+            "SELECT count(*)::int AS total FROM arquivo_zip WHERE id_busca = (SELECT id_busca FROM busca WHERE token = ?)",
+            [tokenLiberado]
+        );
+        assert.strictEqual(linha.total, (primeiro.corpo.partes as number[]).length);
+    });
+
+    test("busca com mais de 500 fotos vira várias partes", async () => {
+        const [busca] = await conexao.queryParam<{ id_busca: number; token: string }>(
+            `INSERT INTO busca (id_evento, token, status, qtd_fotos, consentimento_em, versao_termo)
+             VALUES (?, ?, 'liberada', 501, now(), 'v1') RETURNING id_busca, token`,
+            [idEvento, `tok-grande-${Date.now()}`]
+        );
+        // 501 fotos ligadas à busca: só a contagem de partes interessa aqui.
+        await conexao.executeParamCount(
+            `INSERT INTO foto (id_evento, hash_arquivo, largura, altura, bytes_web, qtd_rostos, situacao)
+             SELECT ?, rpad('zip' || g::text, 64, 'b'), 100, 100, 10, 1, 'visivel' FROM generate_series(1, 501) g`,
+            [idEvento]
+        );
+        await conexao.executeParamCount(
+            `INSERT INTO busca_foto (id_busca, id_foto, id_rosto, similaridade)
+             SELECT ?, id_foto, NULL, 0.9 FROM foto WHERE id_evento = ? AND hash_arquivo LIKE 'zip%'`,
+            [busca.id_busca, idEvento]
+        );
+
+        const r = await chamar({ call: "pedirZip", token: busca.token });
+        assert.strictEqual((r.corpo.partes as number[]).length, 2);
+    });
+});
+
 after(async () => {
     servidor?.close();
     await conexao?.close();
+    // O pedirZip abre a fila do ZIP: sem fechar, o processo de teste não encerra.
+    await fecharFila();
     await fecharBanco();
 });

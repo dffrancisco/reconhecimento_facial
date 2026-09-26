@@ -6,6 +6,8 @@ import { iContexto, iRota } from "../../services/per";
 import { ipDoPedido } from "../../services/limiteTaxa";
 import BuscaCtrl from "./ctrl.busca";
 
+const TAMANHO_MAXIMO_SELFIE = 8 * 1024 * 1024;
+
 export default class Busca implements iRota {
     conexao = new ConexaoPostgres();
     private ctrl!: BuscaCtrl;
@@ -27,6 +29,14 @@ export default class Busca implements iRota {
         const bruto = req.files?.selfies;
         const enviadas = (Array.isArray(bruto) ? bruto : bruto ? [bruto] : []) as UploadedFile[];
         if (enviadas.length === 0) return { msg: "Mande ao menos uma selfie", error: true };
+
+        // O volume de selfies é um tmpfs pequeno, compartilhado com o vision: sem teto aqui,
+        // alguns pedidos grandes o enchem e toda busca passa a falhar.
+        const grandeDemais = enviadas.find((arquivo) => arquivo.size > TAMANHO_MAXIMO_SELFIE);
+        if (grandeDemais) return { msg: "Cada selfie precisa ter no máximo 8 MB. Tire outra com a câmera do celular.", error: true };
+
+        const naoEhImagem = enviadas.find((arquivo) => !arquivo.mimetype?.startsWith("image/"));
+        if (naoEhImagem) return { msg: "Envie uma imagem (JPEG ou PNG).", error: true };
 
         return this.ctrl.buscar({
             slug,

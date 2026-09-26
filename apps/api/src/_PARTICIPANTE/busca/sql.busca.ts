@@ -37,13 +37,19 @@ export interface LinhaBuscaToken {
 // O índice HNSW é global (todos os eventos). Com o filtro por evento, a varredura iterativa
 // é o que mantém o recall: sem ela, o limite do índice se esgota antes de achar as fotos
 // deste evento. `SET LOCAL` exige transação, por isso o BEGIN/COMMIT explícito.
-export async function buscarRostosParecidos(conexao: ConexaoPostgres, idEvento: number, embedding: number[]): Promise<RostoParecido[]> {
+export async function buscarRostosParecidos(_conexao: ConexaoPostgres, idEvento: number, embedding: number[]): Promise<RostoParecido[]> {
     const vetor = `[${embedding.join(",")}]`;
-    await conexao.executeParamCount("BEGIN");
+
+    // Conexão própria com `openTransaction`: ela segura um client do pool do começo ao fim.
+    // Com BEGIN/COMMIT por `pool.query`, cada instrução pega um client diferente — o SET LOCAL
+    // não valeria para o SELECT (recall menor, em silêncio) e o backend do BEGIN voltaria ao
+    // pool com transação aberta, engolindo as gravações do próximo pedido que caísse nele.
+    const transacao = new ConexaoPostgres();
+    await transacao.openTransaction();
     try {
-        await conexao.executeParamCount("SET LOCAL hnsw.ef_search = 100");
-        await conexao.executeParamCount("SET LOCAL hnsw.iterative_scan = relaxed_order");
-        const linhas = await conexao.queryParam<{ id_foto: number; id_rosto: string; similaridade: number }>(
+        await transacao.executeParamCount("SET LOCAL hnsw.ef_search = 100");
+        await transacao.executeParamCount("SET LOCAL hnsw.iterative_scan = relaxed_order");
+        const linhas = await transacao.queryParam<{ id_foto: number; id_rosto: string; similaridade: number }>(
             `SELECT r.id_foto, r.id_rosto, 1 - (r.embedding <=> ?::vector) AS similaridade
                FROM rosto r
                JOIN foto f ON f.id_foto = r.id_foto AND f.situacao = 'visivel'
@@ -52,11 +58,13 @@ export async function buscarRostosParecidos(conexao: ConexaoPostgres, idEvento: 
               LIMIT 400`,
             [vetor, idEvento, vetor]
         );
-        await conexao.executeParamCount("COMMIT");
         return linhas.map((l) => ({ id_foto: l.id_foto, id_rosto: Number(l.id_rosto), similaridade: Number(l.similaridade) }));
     } catch (erro) {
-        await conexao.executeParamCount("ROLLBACK").catch(() => {});
+        transacao.marcarErro();
         throw erro;
+    } finally {
+        // `close()` faz COMMIT (ou ROLLBACK, se marcarErro) e devolve o client ao pool.
+        await transacao.close().catch(() => {});
     }
 }
 
@@ -89,9 +97,12 @@ export async function participantePorChaveAparelho(conexao: ConexaoPostgres, idE
     return linha?.id_participante;
 }
 
+// O índice `ux_busca_codigo_aguardando` é `ON busca (codigo) WHERE status = 'aguardando'`,
+// sem olhar a expiração. Checar por um critério mais frouxo que o do índice faria o INSERT
+// seguinte estourar com 23505 — e o participante levaria um 500, perdendo a busca inteira.
 export async function codigoEmUso(conexao: ConexaoPostgres, codigo: string): Promise<boolean> {
     const linha = await conexao.queryOneParam<{ existe: number }>(
-        "SELECT 1 AS existe FROM busca WHERE codigo = ? AND status = 'aguardando' AND codigo_expira_em > now()",
+        "SELECT 1 AS existe FROM busca WHERE codigo = ? AND status = 'aguardando'",
         [codigo]
     );
     return Boolean(linha);

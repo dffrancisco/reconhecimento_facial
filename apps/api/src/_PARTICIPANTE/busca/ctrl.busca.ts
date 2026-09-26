@@ -70,15 +70,28 @@ export default class BuscaCtrl {
         const caminhos: string[] = [];
         try {
             const listas: RostoParecido[][] = [];
+            let recusaDaPrimeira: ErroSelfie | undefined;
+
             for (const selfie of selfies) {
                 const caminho = path.join(config.raizSelfies, `${gerarChave(16)}.jpg`);
+                // Registra antes de gravar: um write que falha no meio deixa arquivo parcial,
+                // e ele precisa entrar na lista que o `finally` apaga (spec §10).
+                caminhos.push(caminho);
                 await fs.mkdir(config.raizSelfies, { recursive: true });
                 await fs.writeFile(caminho, selfie.dados);
-                caminhos.push(caminho);
 
-                const { embedding } = await embedSelfie(caminho);
-                listas.push(await buscarRostosParecidos(this.conexao, evento.id_evento, embedding));
+                try {
+                    const { embedding } = await embedSelfie(caminho);
+                    listas.push(await buscarRostosParecidos(this.conexao, evento.id_evento, embedding));
+                } catch (erro) {
+                    // Spec §8 passo 4: só desiste se TODAS forem recusadas. Uma selfie tremida
+                    // entre três não pode jogar fora as outras duas.
+                    if (!(erro instanceof ErroSelfie)) throw erro;
+                    recusaDaPrimeira = recusaDaPrimeira ?? erro;
+                }
             }
+
+            if (listas.length === 0 && recusaDaPrimeira) throw recusaDaPrimeira;
 
             const fotos = agruparResultados(listas, limiar);
             return await this.gravarEResponder(entrada, evento, fotos);

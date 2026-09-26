@@ -3,7 +3,7 @@ import { ErroTratado } from "../../services/erro";
 import { urlDaFoto } from "../../services/linkArquivo";
 import { criarFila } from "../../services/fila";
 import { FOTOS_POR_PARTE, NOME_FILA as FILA_ZIP } from "../../jobs/zip";
-import { contarFotosVisiveis, criarZipsDoEvento, eventoPorChaveAnfitriao, fotosDoEvento } from "./sql.galeria";
+import { contarFotosVisiveis, criarZipsDoEvento, eventoPorChaveAnfitriao, fotosDoEvento, zipsValidosDoEvento } from "./sql.galeria";
 
 export default class GaleriaCtrl {
     constructor(private conexao: ConexaoPostgres) {}
@@ -24,6 +24,11 @@ export default class GaleriaCtrl {
 
     async pedirZip(chave: string): Promise<{ partes: number[]; status: string }> {
         const evento = await this.exigirEvento(chave);
+
+        // Pedido repetido devolve o mesmo arquivo, em vez de montar o evento inteiro de novo.
+        const existentes = await zipsValidosDoEvento(this.conexao, evento.id_evento);
+        if (existentes.length > 0) return { partes: existentes, status: "pendente" };
+
         const total = await contarFotosVisiveis(this.conexao, evento.id_evento);
         const partes = Math.max(1, Math.ceil(total / FOTOS_POR_PARTE));
         const ids = await criarZipsDoEvento(this.conexao, evento.id_evento, partes);

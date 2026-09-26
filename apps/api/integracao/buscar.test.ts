@@ -31,6 +31,10 @@ before(async () => {
     appVision.post("/embed-selfie", async (req, res) => {
         // O teste controla a resposta pelo conteúdo do arquivo que a rota gravou.
         const conteudo = await fs.readFile(String(req.body.caminho), "utf8").catch(() => "");
+        if (conteudo.includes("tremida")) {
+            res.status(422).json({ codigo: "borrada", msg: "A foto ficou tremida. Segure o celular firme." });
+            return;
+        }
         if (conteudo.includes("sem-rosto")) {
             res.status(422).json({ codigo: "sem_rosto", msg: "Não encontramos um rosto na foto. Tire outra selfie de frente." });
             return;
@@ -89,7 +93,7 @@ async function buscar(campos: Record<string, string>, conteudoSelfie = "selfie-b
     const forma = new FormData();
     forma.append("call", "buscar");
     for (const [chave, valor] of Object.entries(campos)) forma.append(chave, valor);
-    forma.append("selfies", new Blob([Buffer.from(conteudoSelfie)]), "selfie.jpg");
+    forma.append("selfies", new Blob([Buffer.from(conteudoSelfie)], { type: "image/jpeg" }), "selfie.jpg");
     const resposta = await fetch(`${base}/busca`, { method: "POST", headers: { "CF-Connecting-IP": ip }, body: forma });
     return { status: resposta.status, corpo: (await resposta.json()) as Record<string, unknown> };
 }
@@ -178,6 +182,68 @@ describe("buscar", () => {
     test("sem versao_termo é erro de negócio: o consentimento é obrigatório", async () => {
         const r = await buscar({ slug, aceita_marketing: "N" });
         assert.strictEqual(r.corpo.error, true);
+    });
+
+
+    test("uma selfie ruim entre boas não derruba a busca", async () => {
+        // Spec §8 passo 4: só desiste quando todas foram recusadas.
+        const forma = new FormData();
+        forma.append("call", "buscar");
+        forma.append("slug", slug);
+        forma.append("versao_termo", "v1");
+        forma.append("aceita_marketing", "N");
+        forma.append("selfies", new Blob([Buffer.from("tremida-demais")], { type: "image/jpeg" }), "ruim.jpg");
+        forma.append("selfies", new Blob([Buffer.from("selfie-boa")], { type: "image/jpeg" }), "boa.jpg");
+
+        const resposta = await fetch(`${base}/busca`, {
+            method: "POST",
+            headers: { "CF-Connecting-IP": `7.7.7.${Math.floor(Math.random() * 250)}` },
+            body: forma,
+        });
+        const corpo = (await resposta.json()) as Record<string, unknown>;
+
+        assert.strictEqual(resposta.status, 200);
+        assert.strictEqual(corpo.qtd_fotos, 1, "a selfie boa tinha que valer");
+    });
+
+    test("todas as selfies recusadas devolve a mensagem da primeira recusa", async () => {
+        const forma = new FormData();
+        forma.append("call", "buscar");
+        forma.append("slug", slug);
+        forma.append("versao_termo", "v1");
+        forma.append("aceita_marketing", "N");
+        forma.append("selfies", new Blob([Buffer.from("tremida-demais")], { type: "image/jpeg" }), "ruim1.jpg");
+        forma.append("selfies", new Blob([Buffer.from("sem-rosto-aqui")], { type: "image/jpeg" }), "ruim2.jpg");
+
+        const resposta = await fetch(`${base}/busca`, {
+            method: "POST",
+            headers: { "CF-Connecting-IP": `7.8.7.${Math.floor(Math.random() * 250)}` },
+            body: forma,
+        });
+        const corpo = (await resposta.json()) as Record<string, unknown>;
+
+        assert.strictEqual(resposta.status, 422);
+        assert.match(String(corpo.msg), /tremida/i);
+    });
+
+    test("arquivo que não é imagem é recusado antes de tocar o disco", async () => {
+        const forma = new FormData();
+        forma.append("call", "buscar");
+        forma.append("slug", slug);
+        forma.append("versao_termo", "v1");
+        forma.append("aceita_marketing", "N");
+        const arquivo = new Blob([Buffer.from("isto nao e uma imagem")], { type: "application/pdf" });
+        forma.append("selfies", arquivo, "documento.pdf");
+
+        const resposta = await fetch(`${base}/busca`, {
+            method: "POST",
+            headers: { "CF-Connecting-IP": `7.9.7.${Math.floor(Math.random() * 250)}` },
+            body: forma,
+        });
+        const corpo = (await resposta.json()) as Record<string, unknown>;
+
+        assert.strictEqual(corpo.error, true);
+        assert.deepStrictEqual(await fs.readdir(config.raizSelfies), []);
     });
 
     test("passa do limite de buscas do mesmo IP", async () => {

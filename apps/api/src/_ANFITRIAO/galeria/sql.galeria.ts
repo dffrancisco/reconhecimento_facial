@@ -56,3 +56,14 @@ export async function criarZipsDoEvento(conexao: ConexaoPostgres, idEvento: numb
     }
     return ids;
 }
+
+// ZIP do anfitrião já montado e ainda válido: reaproveita em vez de refazer o evento inteiro.
+export async function zipsValidosDoEvento(conexao: ConexaoPostgres, idEvento: number): Promise<number[]> {
+    const linhas = await conexao.queryParam<{ id_arquivo_zip: number }>(
+        `SELECT id_arquivo_zip FROM arquivo_zip
+          WHERE id_evento = ? AND id_busca IS NULL AND status <> 'erro' AND expira_em > now()
+          ORDER BY parte`,
+        [idEvento]
+    );
+    return linhas.map((l) => l.id_arquivo_zip);
+}

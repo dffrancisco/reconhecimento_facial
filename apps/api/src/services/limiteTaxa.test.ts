@@ -25,3 +25,19 @@ describe("ipDoPedido", () => {
         assert.strictEqual(ipDoPedido({ "cf-connecting-ip": ["203.0.113.7", "1.2.3.4"] }, "10.0.0.1", true), "203.0.113.7");
     });
 });
+
+test("atrás do proxy, usa o primeiro IP do X-Forwarded-For quando não há cabeçalho da Cloudflare", () => {
+    // Sem isso o IP seria o do Traefik e o limite valeria para a plataforma inteira.
+    assert.strictEqual(ipDoPedido({ "x-forwarded-for": "203.0.113.9, 10.0.0.5" }, "172.18.0.2", true), "203.0.113.9");
+});
+
+test("X-Forwarded-For é ignorado quando não se confia no proxy", () => {
+    assert.strictEqual(ipDoPedido({ "x-forwarded-for": "203.0.113.9" }, "172.18.0.2", false), "172.18.0.2");
+});
+
+test("o cabeçalho da Cloudflare tem precedência sobre o X-Forwarded-For", () => {
+    assert.strictEqual(
+        ipDoPedido({ "cf-connecting-ip": "203.0.113.7", "x-forwarded-for": "1.2.3.4" }, "172.18.0.2", true),
+        "203.0.113.7"
+    );
+});
