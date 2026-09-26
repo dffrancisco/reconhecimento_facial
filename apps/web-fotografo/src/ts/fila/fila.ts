@@ -199,7 +199,7 @@ export class FilaDeEnvio {
                     this.mudou(item);
                     continue;
                 }
-                if (falha.tipo === "hash_diferente") return this.falhar(item, falha.message);
+                if (falha.tipo === "hash_diferente" || falha.tipo === "recusada") return this.falhar(item, falha.message);
 
                 item.tentativas++;
                 if (item.tentativas >= TENTATIVAS_POR_FOTO) return this.falhar(item, falha.message);

@@ -205,6 +205,22 @@ describe("FilaDeEnvio", () => {
         expect(esperas).toEqual([1000, 2000, 4000, 8000, 16000]);
     });
 
+    test("recusa definitiva da estação marca o erro na hora, sem 6 tentativas inúteis", async () => {
+        // Um .jpg que é PNG por dentro vai ser recusado igual em todas as tentativas.
+        const { servicos } = estacaoFalsa({
+            enviarPedaco: vi.fn(async () => {
+                throw new FalhaDeEnvio("recusada", "Não é JPEG — exporte em JPEG para enviar.");
+            }),
+        });
+        const fila = new FilaDeEnvio(servicos, { pedacoBytes: 8 });
+
+        fila.adicionar([{ chave: "a", arquivo: arquivo(20) }]);
+        await ate(() => fila.estado().comErro === 1);
+
+        expect(vi.mocked(servicos.enviarPedaco).mock.calls).toHaveLength(1);
+        expect(fila.estado().itens[0].mensagem).toBe("Não é JPEG — exporte em JPEG para enviar.");
+    });
+
     test("tentar de novo devolve a foto com erro para a fila, com as tentativas zeradas", async () => {
         let recusar = true;
         const { servicos } = estacaoFalsa();
