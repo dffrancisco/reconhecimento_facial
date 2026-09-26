@@ -69,3 +69,17 @@ curl -s localhost:8001/health
 ```
 
 O vision na GPU precisa do `nvidia-container-toolkit` no host. A pasta `dados/` (fora do git) aparece dentro do `vision-gpu` como `/data/dados`, para testes manuais e para o benchmark (`docs/benchmark-vision.md`).
+
+## Busca do participante (fase 4)
+
+Com o compose de dev no ar e um evento já ingerido pela estação:
+
+```bash
+npm run demo-busca -- --evento <slug> --selfie <arquivo.jpg>
+```
+
+O script faz a busca real, lê o resultado, baixa um thumb pelo nginx (`127.0.0.1:8080`) — que é quem valida o link assinado — e pede o ZIP. O evento precisa estar com `exigir_whatsapp: false` enquanto a verificação (parte 2 da fase 4) não existir:
+
+```sql
+UPDATE evento SET config = config || '{"exigir_whatsapp":false}'::jsonb WHERE slug = '<slug>';
+```
