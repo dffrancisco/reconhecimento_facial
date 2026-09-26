@@ -77,6 +77,8 @@ services:
       ESTACAO_CHAVE: dev-somente-local-dev-somente-local
       ARQUIVO_SEGREDO: dev-somente-local
       OPERADOR_SEGREDO: dev-somente-local-dev-somente-local
+      # A VPS usa o vision em modo selfie-cpu (embedding da selfie da busca).
+      VISION_URL: http://vision-cpu:8000
     ports:
       - "127.0.0.1:3002:3000"
     depends_on:

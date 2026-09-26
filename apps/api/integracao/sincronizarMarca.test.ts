@@ -6,7 +6,7 @@ import { AddressInfo } from "node:net";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import ConexaoPostgres from "../src/db/conexaoPostgres";
+import ConexaoPostgres, { fecharBanco } from "../src/db/conexaoPostgres";
 import { iniciarConfig, config } from "../src/services/config";
 import { processarSincronizar } from "../src/jobs/sincronizar";
 
@@ -81,4 +81,9 @@ test("marca trocada na VPS chega à estação na sincronização seguinte", asyn
 after(async () => {
     servidorVps?.close();
     await fs.rm(raizMarcas, { recursive: true, force: true });
+});
+
+// Fecha o pool: sem isso o processo de teste fica ~30s ocioso antes de sair.
+after(async () => {
+    await fecharBanco();
 });

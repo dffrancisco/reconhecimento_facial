@@ -15,5 +15,6 @@ export function envTeste(papel: tPapel): NodeJS.ProcessEnv {
         VPS_URL: "http://127.0.0.1:9",
         ARQUIVO_SEGREDO: "segredo-de-teste",
         OPERADOR_SEGREDO: "o".repeat(32),
+        VISION_URL: "http://127.0.0.1:1",
     };
 }

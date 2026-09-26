@@ -5,7 +5,7 @@ import express from "express";
 import fileUpload from "express-fileupload";
 import { Server } from "node:http";
 import { AddressInfo } from "node:net";
-import ConexaoPostgres from "../src/db/conexaoPostgres";
+import ConexaoPostgres, { fecharBanco } from "../src/db/conexaoPostgres";
 import { iniciarConfig, config } from "../src/services/config";
 import EventoCtrl from "../src/_ADMIN/evento/ctrl.evento";
 import per from "../src/services/per";
@@ -23,6 +23,7 @@ before(() => {
         ESTACAO_CHAVE: "a".repeat(32),
         ARQUIVO_SEGREDO: "x",
         OPERADOR_SEGREDO: "a".repeat(32),
+        VISION_URL: "http://127.0.0.1:1",
         RAIZ_FOTOS: "/tmp/fotos-teste-estacao-foto",
     });
 });
@@ -177,4 +178,9 @@ describe("publicarFoto", () => {
 after(async () => {
     servidor?.close();
     await conexao?.close();
+});
+
+// Fecha o pool: sem isso o processo de teste fica ~30s ocioso antes de sair.
+after(async () => {
+    await fecharBanco();
 });

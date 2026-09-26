@@ -21,12 +21,13 @@ export interface iConfig {
     arquivoLinkValidadeS: number;
     buscaLimiteIp: number;
     confiarCloudflare: boolean;
+    raizSelfies: string;
 }
 
 const OBRIGATORIAS: Record<"comum" | tPapel, string[]> = {
     comum: ["POSTGRES_HOST", "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB", "REDIS_URL", "ESTACAO_CHAVE"],
     estacao: ["VPS_URL", "VISION_URL"],
-    vps: ["ARQUIVO_SEGREDO", "OPERADOR_SEGREDO"],
+    vps: ["ARQUIVO_SEGREDO", "OPERADOR_SEGREDO", "VISION_URL"],
 };
 
 const helper = {
@@ -85,6 +86,7 @@ export function carregarConfig(env: NodeJS.ProcessEnv): iConfig {
         arquivoLinkValidadeS: helper.numero(env.ARQUIVO_LINK_VALIDADE_S, 3600, "ARQUIVO_LINK_VALIDADE_S"),
         buscaLimiteIp: helper.numero(env.BUSCA_LIMITE_IP, 10, "BUSCA_LIMITE_IP"),
         confiarCloudflare: env.CONFIAR_CLOUDFLARE === "true",
+        raizSelfies: env.RAIZ_SELFIES || "/data/selfies",
     };
 }
 

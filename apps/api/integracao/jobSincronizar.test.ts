@@ -3,7 +3,7 @@ import assert from "node:assert";
 import express from "express";
 import { Server } from "node:http";
 import { AddressInfo } from "node:net";
-import ConexaoPostgres from "../src/db/conexaoPostgres";
+import ConexaoPostgres, { fecharBanco } from "../src/db/conexaoPostgres";
 import { iniciarConfig, config } from "../src/services/config";
 import { processarSincronizar } from "../src/jobs/sincronizar";
 
@@ -79,4 +79,9 @@ test("grava operadores, eventos, fotógrafos e vínculos com os mesmos IDs da VP
 
 after(async () => {
     servidorVps?.close();
+});
+
+// Fecha o pool: sem isso o processo de teste fica ~30s ocioso antes de sair.
+after(async () => {
+    await fecharBanco();
 });

@@ -1,5 +1,6 @@
 import { test, before, describe } from "node:test";
 import assert from "node:assert";
+import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { iniciarConfig } from "../src/services/config";
@@ -29,8 +30,10 @@ before(async () => {
     });
 
     // Grava o arquivo pelo container da api-vps, que monta o mesmo volume que o nginx lê.
+    // A suíte roda com cwd em apps/api: o compose fica dois níveis acima.
+    const compose = path.resolve(__dirname, "..", "..", "..", "docker-compose.dev.yml");
     await executar("docker", [
-        "compose", "-f", "docker-compose.dev.yml", "exec", "-T", "api-vps",
+        "compose", "-f", compose, "exec", "-T", "api-vps",
         "sh", "-lc", `mkdir -p /data/fotos/${ID_EVENTO} && printf 'conteudo-da-foto' > /data/fotos/${ID_EVENTO}/${HASH}_web.jpg`,
     ]);
 });

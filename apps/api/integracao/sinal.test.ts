@@ -3,7 +3,7 @@ import assert from "node:assert";
 import express from "express";
 import { Server } from "node:http";
 import { AddressInfo } from "node:net";
-import ConexaoPostgres from "../src/db/conexaoPostgres";
+import ConexaoPostgres, { fecharBanco } from "../src/db/conexaoPostgres";
 import { iniciarConfig } from "../src/services/config";
 import { fecharFila } from "../src/services/fila";
 import { MetricasFila, obterMetricasFila } from "../src/services/metricas";
@@ -84,4 +84,9 @@ after(async () => {
     servidorVision?.close();
     await conexao?.close();
     await fecharFila();
+});
+
+// Fecha o pool: sem isso o processo de teste fica ~30s ocioso antes de sair.
+after(async () => {
+    await fecharBanco();
 });
