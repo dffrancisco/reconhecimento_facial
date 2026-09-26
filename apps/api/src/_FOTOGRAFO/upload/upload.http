@@ -1,0 +1,20 @@
+@estacao = http://localhost:3001
+@token = COLE_O_TOKEN_UPLOAD_DO_VINCULO
+
+### Sessão do link
+POST {{estacao}}/api/fotografo/upload
+Content-Type: application/json
+
+{ "call": "getSessao", "token": "{{token}}" }
+
+### Iniciar o envio de uma foto
+POST {{estacao}}/api/fotografo/upload
+Content-Type: application/json
+
+{ "call": "iniciarUpload", "token": "{{token}}", "nome_arquivo": "IMG_0001.JPG", "tamanho": 1048576, "hash_arquivo": "0000000000000000000000000000000000000000000000000000000000000000" }
+
+### Situação das fotos deste fotógrafo
+POST {{estacao}}/api/fotografo/upload
+Content-Type: application/json
+
+{ "call": "statusUpload", "token": "{{token}}" }
