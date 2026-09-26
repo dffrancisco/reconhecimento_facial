@@ -1,0 +1,32 @@
+@vps = http://localhost:3002
+@token = COLE_O_TOKEN_DA_BUSCA_AQUI
+
+### Resultado
+POST {{vps}}/api/participante/resultado
+Content-Type: application/json
+
+{ "call": "getResultado", "token": "{{token}}" }
+
+### Situação (a página consulta a cada 3s enquanto aguarda)
+POST {{vps}}/api/participante/resultado
+Content-Type: application/json
+
+{ "call": "situacao", "token": "{{token}}" }
+
+### Links de download
+POST {{vps}}/api/participante/resultado
+Content-Type: application/json
+
+{ "call": "gerarLinks", "token": "{{token}}", "ids": [1, 2] }
+
+### Pedir o ZIP
+POST {{vps}}/api/participante/resultado
+Content-Type: application/json
+
+{ "call": "pedirZip", "token": "{{token}}" }
+
+### Situação do ZIP
+POST {{vps}}/api/participante/resultado
+Content-Type: application/json
+
+{ "call": "situacaoZip", "token": "{{token}}", "id_arquivo_zip": 1 }

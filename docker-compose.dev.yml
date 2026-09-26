@@ -77,6 +77,8 @@ services:
       ESTACAO_CHAVE: dev-somente-local-dev-somente-local
       ARQUIVO_SEGREDO: dev-somente-local
       OPERADOR_SEGREDO: dev-somente-local-dev-somente-local
+      # A VPS usa o vision em modo selfie-cpu (embedding da selfie da busca).
+      VISION_URL: http://vision-cpu:8000
     ports:
       - "127.0.0.1:3002:3000"
     depends_on:
@@ -86,6 +88,29 @@ services:
       - selfies:/data/selfies
       - fotos-vps:/data/fotos
       - marcas-vps:/data/marcas
+      - zips-vps:/data/zips
+
+  worker-vps:
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    command: ["node", "dist/worker.js"]
+    # O worker não escuta HTTP: o healthcheck da imagem (GET /test) nunca passaria.
+    healthcheck: { disable: true }
+    environment:
+      <<: *banco-dev
+      PAPEL: vps
+      POSTGRES_DB: fotos_vps
+      REDIS_URL: redis://redis:6379
+      REDIS_PREFIXO: "fotos:vps:"
+      ESTACAO_CHAVE: dev-somente-local-dev-somente-local
+      ARQUIVO_SEGREDO: dev-somente-local
+      OPERADOR_SEGREDO: dev-somente-local-dev-somente-local
+      VISION_URL: http://vision-cpu:8000
+    volumes:
+      - fotos-vps:/data/fotos:ro
+      - zips-vps:/data/zips
+    depends_on:
+      migrate-vps: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
 
   worker-estacao:
     build: { context: ., dockerfile: apps/api/Dockerfile }
@@ -108,6 +133,20 @@ services:
     depends_on:
       migrate-estacao: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
+
+  arquivos:
+    build: { context: ./infra/nginx }
+    environment:
+      ARQUIVO_SEGREDO: dev-somente-local
+    volumes:
+      - fotos-vps:/data/fotos:ro
+      - zips-vps:/data/zips:ro
+    ports:
+      - "127.0.0.1:8080:80"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/health"]
+      interval: 10s
+      retries: 5
 
   vision-gpu:
     profiles: ["gpu"]
@@ -153,6 +192,7 @@ volumes:
   marcas-estacao:
   fotos-vps:
   marcas-vps:
+  zips-vps:
   # Selfies só existem durante a busca (spec §10): tmpfs, nunca em disco.
   selfies:
     driver_opts:

@@ -8,7 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import sharp from "sharp";
 import { UnrecoverableError } from "bullmq";
-import ConexaoPostgres from "../src/db/conexaoPostgres";
+import ConexaoPostgres, { fecharBanco } from "../src/db/conexaoPostgres";
 import { iniciarConfig, config } from "../src/services/config";
 import { fecharFila } from "../src/services/fila";
 import { processarFoto } from "../src/jobs/processarFoto";
@@ -171,4 +171,9 @@ after(async () => {
     // A fila de publicação abre uma conexão Redis que segura o event loop: sem fechar, o
     // processo de teste nunca termina.
     await fecharFila();
+});
+
+// Fecha o pool: sem isso o processo de teste fica ~30s ocioso antes de sair.
+after(async () => {
+    await fecharBanco();
 });

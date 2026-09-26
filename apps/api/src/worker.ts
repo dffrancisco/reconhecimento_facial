@@ -6,6 +6,7 @@ import { iniciarWorkerProcessarFoto } from "./jobs/processarFoto";
 import { iniciarWorkerPublicarFoto } from "./jobs/publicarFoto";
 import { agendarSincronizacao, iniciarWorkerSincronizar } from "./jobs/sincronizar";
 import { iniciarSinalPeriodico } from "./jobs/sinal";
+import { iniciarWorkerZip } from "./jobs/zip";
 
 try {
     iniciarConfig(process.env);
@@ -16,8 +17,9 @@ try {
 
 async function main(): Promise<void> {
     if (config.papel !== "estacao") {
-        // Nenhuma fila desta fase roda na VPS (whatsapp/zip/expurgo são fase 4).
-        console.log("[Worker] papel vps não tem filas nesta fase — nada a fazer.");
+        // A VPS monta os ZIPs; whatsapp e expurgo entram na parte 2 da fase 4.
+        iniciarWorkerZip();
+        console.log("[Worker] papel vps | fila zip");
         return;
     }
 

@@ -1,0 +1,14 @@
+@vps = http://localhost:3002
+@chave = COLE_A_CHAVE_DO_ANFITRIAO
+
+### Galeria
+POST {{vps}}/api/anfitriao/galeria
+Content-Type: application/json
+
+{ "call": "getGaleria", "chave": "{{chave}}", "offset": 0 }
+
+### Pedir o ZIP do evento
+POST {{vps}}/api/anfitriao/galeria
+Content-Type: application/json
+
+{ "call": "pedirZip", "chave": "{{chave}}" }

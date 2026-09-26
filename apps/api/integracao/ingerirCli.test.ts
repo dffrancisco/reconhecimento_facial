@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import ConexaoPostgres from "../src/db/conexaoPostgres";
+import ConexaoPostgres, { fecharBanco } from "../src/db/conexaoPostgres";
 import { iniciarConfig } from "../src/services/config";
 
 const executar = promisify(execFile);
@@ -53,4 +53,9 @@ test("o comando ingerir termina sozinho depois de enfileirar", async () => {
 after(async () => {
     await conexao?.close();
     await fs.rm(pasta, { recursive: true, force: true });
+});
+
+// Fecha o pool: sem isso o processo de teste fica ~30s ocioso antes de sair.
+after(async () => {
+    await fecharBanco();
 });

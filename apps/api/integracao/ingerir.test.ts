@@ -3,7 +3,7 @@ import assert from "node:assert";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import ConexaoPostgres from "../src/db/conexaoPostgres";
+import ConexaoPostgres, { fecharBanco } from "../src/db/conexaoPostgres";
 import { iniciarConfig } from "../src/services/config";
 import { criarFila, fecharFila } from "../src/services/fila";
 import { NOME_FILA } from "../src/jobs/processarFoto";
@@ -67,4 +67,9 @@ after(async () => {
     await fs.rm(pasta, { recursive: true, force: true });
     // Sem fechar a conexão Redis da fila, o processo de teste não encerra.
     await fecharFila();
+});
+
+// Fecha o pool: sem isso o processo de teste fica ~30s ocioso antes de sair.
+after(async () => {
+    await fecharBanco();
 });

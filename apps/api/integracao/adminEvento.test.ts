@@ -5,7 +5,7 @@ import { mkdtempSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import sharp from "sharp";
-import ConexaoPostgres from "../src/db/conexaoPostgres";
+import ConexaoPostgres, { fecharBanco } from "../src/db/conexaoPostgres";
 import { config, iniciarConfig } from "../src/services/config";
 import EventoCtrl from "../src/_ADMIN/evento/ctrl.evento";
 import { ErroTratado } from "../src/services/erro";
@@ -24,6 +24,7 @@ before(() => {
         ESTACAO_CHAVE: "a".repeat(32),
         ARQUIVO_SEGREDO: "x",
         OPERADOR_SEGREDO: "a".repeat(32),
+        VISION_URL: "http://127.0.0.1:1",
         RAIZ_MARCAS: raizMarcasTeste,
     });
 });
@@ -108,4 +109,9 @@ test("subirMarcaDagua recusa arquivo maior que 2 MB", async () => {
 after(async () => {
     await conexao?.close();
     await fs.rm(raizMarcasTeste, { recursive: true, force: true });
+});
+
+// Fecha o pool: sem isso o processo de teste fica ~30s ocioso antes de sair.
+after(async () => {
+    await fecharBanco();
 });

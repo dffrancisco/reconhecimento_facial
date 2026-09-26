@@ -15,6 +15,7 @@ before(() => {
         ESTACAO_CHAVE: "a".repeat(32),
         ARQUIVO_SEGREDO: "x",
         OPERADOR_SEGREDO: "a".repeat(32),
+        VISION_URL: "http://127.0.0.1:1",
     });
 });
 

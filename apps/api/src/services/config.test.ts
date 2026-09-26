@@ -23,7 +23,7 @@ describe("carregarConfig", () => {
     test("VPS exige ARQUIVO_SEGREDO e OPERADOR_SEGREDO", () => {
         assert.throws(
             () => carregarConfig({ ...BASE, PAPEL: "vps" }),
-            /faltando para o papel vps: ARQUIVO_SEGREDO, OPERADOR_SEGREDO/
+            /faltando para o papel vps: ARQUIVO_SEGREDO, OPERADOR_SEGREDO, VISION_URL/
         );
     });
 
@@ -46,6 +46,7 @@ describe("carregarConfig", () => {
                     PAPEL: "vps",
                     ARQUIVO_SEGREDO: "x",
                     OPERADOR_SEGREDO: "a".repeat(32),
+                    VISION_URL: "http://vision:8000",
                     ESTACAO_CHAVE: "curta",
                 }),
             /ESTACAO_CHAVE deve ter pelo menos 32 caracteres/
@@ -60,6 +61,7 @@ describe("carregarConfig", () => {
                     PAPEL: "vps",
                     ARQUIVO_SEGREDO: "x",
                     OPERADOR_SEGREDO: "a".repeat(32),
+                    VISION_URL: "http://vision:8000",
                     PORTA: "abc",
                 }),
             /PORTA deve ser um número inteiro positivo/
@@ -67,7 +69,7 @@ describe("carregarConfig", () => {
     });
 
     test("aplica os padrões", () => {
-        const c = carregarConfig({ ...BASE, PAPEL: "vps", ARQUIVO_SEGREDO: "x", OPERADOR_SEGREDO: "a".repeat(32) });
+        const c = carregarConfig({ ...BASE, PAPEL: "vps", ARQUIVO_SEGREDO: "x", OPERADOR_SEGREDO: "a".repeat(32), VISION_URL: "http://vision:8000" });
 
         assert.strictEqual(c.porta, 3000);
         assert.strictEqual(c.postgres.porta, 5432);
@@ -108,6 +110,7 @@ describe("iniciarConfig", () => {
             PAPEL: "vps",
             ARQUIVO_SEGREDO: "x",
             OPERADOR_SEGREDO: "a".repeat(32),
+            VISION_URL: "http://vision:8000",
         });
 
         assert.strictEqual(devolvido, config);

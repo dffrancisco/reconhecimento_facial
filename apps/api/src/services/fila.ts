@@ -17,6 +17,11 @@ function obterConexao(): Redis {
 // num processo de vida longa.
 const filas = new Map<string, Queue>();
 
+// O limite de buscas por IP usa a mesma conexão das filas, em vez de abrir outra.
+export function obterRedis(): Redis {
+    return obterConexao();
+}
+
 export async function fecharFila(): Promise<void> {
     const abertas = [...filas.values()];
     filas.clear();

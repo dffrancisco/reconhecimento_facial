@@ -1,0 +1,28 @@
+@vps = http://localhost:3002
+
+### Buscar (REST Client: selecione uma selfie local)
+POST {{vps}}/api/participante/busca
+Content-Type: multipart/form-data; boundary=----limite
+
+------limite
+Content-Disposition: form-data; name="call"
+
+buscar
+------limite
+Content-Disposition: form-data; name="slug"
+
+corrida-da-serra-2026
+------limite
+Content-Disposition: form-data; name="versao_termo"
+
+v1
+------limite
+Content-Disposition: form-data; name="aceita_marketing"
+
+N
+------limite
+Content-Disposition: form-data; name="selfies"; filename="selfie.jpg"
+Content-Type: image/jpeg
+
+< ./selfie.jpg
+------limite--

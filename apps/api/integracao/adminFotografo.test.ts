@@ -1,6 +1,6 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert";
-import ConexaoPostgres from "../src/db/conexaoPostgres";
+import ConexaoPostgres, { fecharBanco } from "../src/db/conexaoPostgres";
 import { iniciarConfig } from "../src/services/config";
 import FotografoCtrl from "../src/_ADMIN/fotografo/ctrl.fotografo";
 import EventoCtrl from "../src/_ADMIN/evento/ctrl.evento";
@@ -18,6 +18,7 @@ before(() => {
         ESTACAO_CHAVE: "a".repeat(32),
         ARQUIVO_SEGREDO: "x",
         OPERADOR_SEGREDO: "a".repeat(32),
+        VISION_URL: "http://127.0.0.1:1",
     });
 });
 
@@ -66,4 +67,9 @@ test("vincular a um evento inexistente lança ErroTratado", async () => {
 
 after(async () => {
     await conexao?.close();
+});
+
+// Fecha o pool: sem isso o processo de teste fica ~30s ocioso antes de sair.
+after(async () => {
+    await fecharBanco();
 });
