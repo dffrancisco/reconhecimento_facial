@@ -2,7 +2,8 @@
 # Só a infraestrutura:  docker compose -f docker-compose.dev.yml up -d postgres redis
 # Tudo (sem GPU):       docker compose -f docker-compose.dev.yml up -d --build
 # Com o vision na GPU:  docker compose -f docker-compose.dev.yml --profile gpu up -d --build
-# Ingestão de teste:  docker compose -f docker-compose.dev.yml exec worker-estacao npm run ingerir -w apps/api -- --evento <slug> --pasta /data/dados/<pasta>
+# Ingestão de teste:  docker compose -f docker-compose.dev.yml exec worker-estacao node dist/scripts/ingerir.js --evento <slug> --pasta /data/dados/<pasta>
+#                     (a imagem é de produção: só tem dist/, sem tsx — por isso não é `npm run ingerir`)
 name: fotos-dev
 
 services:
@@ -117,8 +118,12 @@ services:
         ORT: onnxruntime-gpu[cuda,cudnn]==1.30.0
     environment:
       VISION_MODO: gpu
+      # O pipeline manda o vision abrir o original gravado pelo worker: sem o volume
+      # `originais` aqui, o /detect recusa a foto com "No such file or directory".
+      VISION_RAIZES: /data/originais:/data/dados
     volumes:
       - ./dados:/data/dados:ro
+      - originais:/data/originais:ro
     ports:
       - "127.0.0.1:8001:8000"
     deploy:
