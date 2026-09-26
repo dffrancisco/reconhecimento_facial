@@ -1,0 +1,32 @@
+@vps = http://localhost:3002
+@chave = dev-somente-local-dev-somente-local
+
+### Publicar (REST Client: selecione arquivos locais de teste)
+POST {{vps}}/api/estacao/foto
+Authorization: {{chave}}
+Content-Type: multipart/form-data; boundary=----limite
+
+------limite
+Content-Disposition: form-data; name="call"
+
+publicarFoto
+------limite
+Content-Disposition: form-data; name="dados"
+
+{"id_evento":1,"id_evento_fotografo":null,"hash_arquivo":"abc123","largura":4000,"altura":3000,"bytes_web":12345,"capturada_em":null,"camera":null,"rostos":[]}
+------limite
+Content-Disposition: form-data; name="web"; filename="web.jpg"
+Content-Type: image/jpeg
+
+< ./web.jpg
+------limite
+Content-Disposition: form-data; name="thumb"; filename="thumb.jpg"
+Content-Type: image/jpeg
+
+< ./thumb.jpg
+------limite
+Content-Disposition: form-data; name="previa"; filename="previa.jpg"
+Content-Type: image/jpeg
+
+< ./previa.jpg
+------limite--

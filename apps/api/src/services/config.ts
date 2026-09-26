@@ -10,6 +10,7 @@ export interface iConfig {
     arquivoSegredo: string;
     operadorSegredo: string;
     raizMarcas: string;
+    raizFotos: string;
 }
 
 const OBRIGATORIAS: Record<"comum" | tPapel, string[]> = {
@@ -63,6 +64,7 @@ export function carregarConfig(env: NodeJS.ProcessEnv): iConfig {
         arquivoSegredo: env.ARQUIVO_SEGREDO ?? "",
         operadorSegredo,
         raizMarcas: env.RAIZ_MARCAS || "/data/marcas",
+        raizFotos: env.RAIZ_FOTOS || "/data/fotos",
     };
 }
 

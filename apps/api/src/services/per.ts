@@ -51,15 +51,35 @@ export default async function per(
     }
 
     let rota: iRota | undefined;
+    let fechada = false;
+
+    // `close()` da conexão é quem faz o COMMIT (ou o ROLLBACK, quando marcarErro() foi chamado).
+    const fechar = async (): Promise<void> => {
+        if (fechada || !rota?.conexao) return;
+        fechada = true;
+        await rota.conexao.close();
+    };
+
     try {
         rota = new Classe({ authorization: req.headers.authorization });
         await rota.init();
         const metodo = (rota as unknown as Record<string, (req: Request) => Promise<unknown>>)[call];
-        responder(res, await metodo.call(rota, req));
+        const rs = await metodo.call(rota, req);
+
+        // Fecha antes de responder: um 200 só pode sair depois do COMMIT. Respondendo primeiro,
+        // um COMMIT que falhasse deixaria o cliente convencido de que gravou — e, no caso da
+        // estação publicando fotos, a foto seria marcada como publicada e nunca reenviada.
+        await fechar();
+        responder(res, rs);
     } catch (erro) {
-        // Marca a conexão como falha antes do `finally` fechá-la: sem isso, um erro lançado
+        // Marca a conexão como falha antes de fechá-la: sem isso, um erro lançado
         // dentro de uma transação (openTransaction) seria seguido de COMMIT em vez de rollback.
         rota?.conexao?.marcarErro?.();
+        try {
+            await fechar();
+        } catch (erroFechar) {
+            console.error("[per] Erro ao fechar a conexão:", erroFechar);
+        }
 
         if (erro instanceof ErroTratado) {
             res.status(422).send({ msg: erro.message });
@@ -79,13 +99,5 @@ export default async function per(
                 : { message: String(erro) };
         console.error(`[per] Erro em ${req.baseUrl}${req.path} (${call}):`, detalhes);
         res.status(500).send({ msg: "Erro ao processar sua solicitação" });
-    } finally {
-        if (rota?.conexao) {
-            try {
-                await rota.conexao.close();
-            } catch (erro) {
-                console.error("[per] Erro ao fechar a conexão:", erro);
-            }
-        }
     }
 }

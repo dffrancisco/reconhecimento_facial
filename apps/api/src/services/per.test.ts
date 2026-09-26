@@ -60,6 +60,42 @@ class RotaFalsa {
     }
 }
 
+// `close()` é quem faz o COMMIT. Estas duas rotas provam que a resposta só sai depois dele.
+class RotaCommitLento {
+    conexao = {
+        close: async () => {
+            await new Promise((resolve) => setTimeout(resolve, 50));
+            eventos.push("close");
+            return true;
+        },
+    };
+
+    async init() {
+        eventos.push("init");
+    }
+
+    async ola() {
+        return { ok: true };
+    }
+}
+
+class RotaCommitFalha {
+    conexao = {
+        close: async (): Promise<boolean> => {
+            eventos.push("close");
+            throw new Error("COMMIT falhou");
+        },
+    };
+
+    async init() {
+        eventos.push("init");
+    }
+
+    async ola() {
+        return { ok: true };
+    }
+}
+
 class RotaInitFalha {
     conexao = {
         close: async () => {
@@ -87,6 +123,12 @@ before(async () => {
     app.post("/rota", (req: Request, res: Response, next: NextFunction) => per(req, res, next, RotaFalsa));
     app.post("/init-falha", (req: Request, res: Response, next: NextFunction) =>
         per(req, res, next, RotaInitFalha)
+    );
+    app.post("/commit-lento", (req: Request, res: Response, next: NextFunction) =>
+        per(req, res, next, RotaCommitLento)
+    );
+    app.post("/commit-falha", (req: Request, res: Response, next: NextFunction) =>
+        per(req, res, next, RotaCommitFalha)
     );
     servidor = app.listen(0);
     await new Promise((resolve) => servidor.once("listening", resolve));
@@ -146,6 +188,21 @@ describe("per", () => {
 
         assert.strictEqual(r.status, 500);
         assert.deepStrictEqual(eventos, ["close"]);
+    });
+
+    test("só responde depois de fechar a conexão: o COMMIT vem antes do 200", async () => {
+        const r = await chamar("/commit-lento", { call: "ola" });
+
+        assert.strictEqual(r.status, 200);
+        // Se a resposta saísse antes do close(), "close" ainda não estaria aqui quando o fetch resolveu.
+        assert.deepStrictEqual(eventos, ["init", "close"]);
+    });
+
+    test("COMMIT que falha vira 500, não um 200 sobre dados que não foram gravados", async () => {
+        const r = await chamar("/commit-falha", { call: "ola" });
+
+        assert.strictEqual(r.status, 500);
+        assert.deepStrictEqual(r.corpo, { msg: "Erro ao processar sua solicitação" });
     });
 
     test("retorno nulo vira lista vazia", async () => {
