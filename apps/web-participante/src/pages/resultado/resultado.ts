@@ -1,6 +1,7 @@
 import { reactive } from "vue";
 import { router } from "../../router";
 import { baixarArquivo } from "../../ts/arquivos";
+import { entradaDaBusca } from "../../ts/entrada";
 import { esperarPartes } from "../../ts/zip";
 import type { FotoDoResultado } from "./interfaces";
 import { getResultado, gerarLinks, pedirZip, situacaoZip } from "./services/resultado.service";
@@ -19,7 +20,12 @@ export const state = reactive({
     aberta: null as number | null,
     zip: "nenhum" as "nenhum" | "montando" | "pronto",
     urlsZip: [] as string[],
+    compartilharPronto: null as number | null,
 });
+
+// Foto já baixada cujo menu de compartilhar o navegador recusou. Fica fora do state: um File
+// dentro do reactive vira Proxy, e o navigator.share não aceita Proxy.
+let prontaParaEnvio: { indice: number; arquivo: File; url: string } | null = null;
 
 export function validadeParaTela(validadeAte: string | null): string {
     return validadeAte ? new Date(validadeAte).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) : "";
@@ -29,14 +35,22 @@ function foiCancelado(erro: unknown): boolean {
     return erro instanceof DOMException && erro.name === "AbortError";
 }
 
+function recusadoPorFaltaDeToque(erro: unknown): boolean {
+    return erro instanceof DOMException && erro.name === "NotAllowedError";
+}
+
 export const actions = {
     async init(token: string): Promise<void> {
         state.token = token;
         state.carregando = true;
         state.mensagem = "";
+        state.evento = "";
+        state.slug = "";
         state.aberta = null;
         state.zip = "nenhum";
         state.urlsZip = [];
+        state.compartilharPronto = null;
+        prontaParaEnvio = null;
         // Guardado para o "buscar de novo" mandar como token_origem — é o que dispensa
         // refazer a verificação quando ela existir.
         sessionStorage.setItem("busca_anterior", token);
@@ -101,24 +115,43 @@ export const actions = {
         }
     },
 
+    prontaParaCompartilhar(): boolean {
+        return state.compartilharPronto !== null && state.compartilharPronto === state.aberta;
+    },
+
     async compartilhar(indice: number): Promise<void> {
         const foto = state.fotos[indice];
         if (!foto || !actions.podeCompartilhar()) return;
 
-        let url: string | null = null;
-        try {
-            url = await actions.linkDaFoto(indice);
-            if (!url) return;
+        const pronta = prontaParaEnvio?.indice === indice ? prontaParaEnvio : null;
+        prontaParaEnvio = null;
+        state.compartilharPronto = null;
 
-            // Baixa o arquivo para poder anexar: compartilhar só o link faria a pessoa mandar
-            // uma URL que vence em uma hora.
-            const resposta = await fetch(url);
-            const arquivo = new File([await resposta.blob()], `foto-${foto.id_foto}.jpg`, { type: "image/jpeg" });
+        let url = pronta?.url ?? null;
+        let arquivo = pronta?.arquivo ?? null;
+        try {
+            if (!arquivo) {
+                url = await actions.linkDaFoto(indice);
+                if (!url) return;
+
+                // Baixa o arquivo para poder anexar: compartilhar só o link faria a pessoa
+                // mandar uma URL que vence em uma hora.
+                const resposta = await fetch(url);
+                if (!resposta.ok) throw new Error(`A foto respondeu ${resposta.status}.`);
+                arquivo = new File([await resposta.blob()], `foto-${foto.id_foto}.jpg`, { type: "image/jpeg" });
+            }
             await navigator.share({ files: [arquivo], title: state.evento });
         } catch (erro) {
             if (foiCancelado(erro)) return;
-            // O navegador pode recusar o menu (o toque "venceu" enquanto a foto baixava): a
-            // pessoa fica com a foto salva em vez de um botão que não respondeu.
+            // No iPhone o menu só abre colado no toque, e baixar a foto pode passar desse
+            // tempo. Com a foto já em mãos, o segundo toque abre o menu na hora — baixar para
+            // Arquivos no lugar não põe a foto na galeria.
+            if (!pronta && arquivo && url && recusadoPorFaltaDeToque(erro)) {
+                prontaParaEnvio = { indice, arquivo, url };
+                state.compartilharPronto = indice;
+                return;
+            }
+            // Qualquer outra recusa: a pessoa fica com a foto salva em vez de um botão mudo.
             if (url) baixarArquivo(url);
             else actions.mostrarFalha(erro);
         }
@@ -143,14 +176,17 @@ export const actions = {
         }
     },
 
-    // Quem veio da câmera volta para ela (vale também para evento privado). Quem reabriu o
-    // link dias depois não tem tela anterior: vai para a câmera do evento pelo slug.
+    // Quem veio da câmera volta para ela. Quem reabriu o link dias depois não tem tela
+    // anterior: vai pela entrada guardada na busca (vale para evento privado) e, sem ela,
+    // pela câmera do evento pelo slug.
     temCaminhoParaCamera(): boolean {
-        return Boolean(router.options.history.state.back) || Boolean(state.slug);
+        return Boolean(router.options.history.state.back) || Boolean(entradaDaBusca(state.token)) || Boolean(state.slug);
     },
 
     voltarParaCamera(): void {
+        const entrada = entradaDaBusca(state.token);
         if (router.options.history.state.back) router.back();
+        else if (entrada) router.push(entrada);
         else if (state.slug) router.push({ name: "evento", params: { slug: state.slug } });
     },
 };

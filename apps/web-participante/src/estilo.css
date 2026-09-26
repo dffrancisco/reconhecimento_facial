@@ -1,5 +1,9 @@
 @import "tailwindcss";
-@plugin "daisyui";
+/* Só o tema claro: sem isto o daisyUI escurece a página nos celulares em modo escuro, e a
+   spec do app (§2) fixa que o prefers-color-scheme não muda nada. */
+@plugin "daisyui" {
+    themes: light --default;
+}
 
 /* Tema Largada (spec do app, §2). Fica em variáveis para o gradiente e os botões
    não repetirem o mesmo hex em cada tela. */

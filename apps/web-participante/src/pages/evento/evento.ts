@@ -1,5 +1,6 @@
 import { reactive } from "vue";
 import { router } from "../../router";
+import { guardarEntrada } from "../../ts/entrada";
 import { dimensoesReduzidas, jpegDoCanvas, reduzirSelfie } from "../../ts/imagem";
 import { buscarPorSelfie } from "./services/evento.service";
 
@@ -98,7 +99,18 @@ export const actions = {
                 tokenOrigem: sessionStorage.getItem("busca_anterior") ?? undefined,
             });
 
+            // A confirmação por WhatsApp é da parte 2: um evento que ainda a exige devolve
+            // `aguardando` (só acontece com fotos achadas), e o resultado responderia "não
+            // encontramos suas fotos" a quem tem fotos.
+            if (resposta.status === "aguardando") {
+                state.etapa = "erro";
+                state.mensagem =
+                    "Achamos fotos suas, mas este evento pede uma confirmação que ainda não está disponível por aqui. Avise a organização do evento.";
+                return;
+            }
+
             actions.encerrarCamera();
+            guardarEntrada(resposta.token, state.chaveAcesso ? `/p/${state.chaveAcesso}` : `/e/${state.slug}`);
             // Mesmo com zero fotos a busca é `liberada`: a tela de resultado é que mostra
             // o "ainda não achamos você" (spec da plataforma §8).
             router.push({ name: "resultado", params: { token: resposta.token } });

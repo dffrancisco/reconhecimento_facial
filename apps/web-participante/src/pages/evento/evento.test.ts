@@ -133,6 +133,30 @@ describe("envio da selfie", () => {
         expect(irPara).toHaveBeenCalledWith({ name: "resultado", params: { token: "tok123" } });
     });
 
+    test("busca aguardando confirmação não leva a um resultado que diria 'não achamos'", async () => {
+        // Evento de corrida nasce exigindo WhatsApp, e essa etapa ainda não existe: quem tem
+        // fotos cairia num "não encontramos suas fotos" falso.
+        vi.mocked(buscarPorSelfie).mockResolvedValue({ token: "tokA", status: "aguardando", qtd_fotos: 4, previas: [] });
+
+        await actions.buscar();
+
+        expect(irPara).not.toHaveBeenCalled();
+        expect(state.etapa).toBe("erro");
+        expect(state.mensagem).toContain("organização");
+    });
+
+    test("guarda por onde a pessoa entrou, para o resultado reaberto saber voltar à câmera", async () => {
+        // Evento privado só abre por /p/<chave>: pelo slug a API recusa.
+        state.slug = "";
+        state.chaveAcesso = "chave-privada";
+        vi.mocked(buscarPorSelfie).mockResolvedValue({ token: "tokP", status: "liberada", qtd_fotos: 2, previas: [] });
+
+        await actions.buscar();
+
+        expect(localStorage.getItem("entrada:tokP")).toBe("/p/chave-privada");
+        localStorage.clear();
+    });
+
     test("mostra a busca em curso enquanto espera", async () => {
         let liberar: (valor: unknown) => void = () => {};
         vi.mocked(buscarPorSelfie).mockReturnValue(new Promise((resolve) => (liberar = resolve)) as never);

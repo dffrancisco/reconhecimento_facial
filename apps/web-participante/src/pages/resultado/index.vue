@@ -72,6 +72,7 @@ const titulo = computed(() => (state.fotos.length === 1 ? "1 foto sua" : `${stat
             v-if="state.aberta !== null && state.fotos[state.aberta]"
             :foto="state.fotos[state.aberta]"
             :pode-compartilhar="actions.podeCompartilhar()"
+            :pronta-para-compartilhar="actions.prontaParaCompartilhar()"
             @fechar="actions.fechar()"
             @salvar="actions.salvar(state.aberta!)"
             @compartilhar="actions.compartilhar(state.aberta!)"

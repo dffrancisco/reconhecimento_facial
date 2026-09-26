@@ -36,4 +36,27 @@ describe("tela de privacidade", () => {
 
         expect(tela.text()).not.toContain("Voltar");
     });
+
+    describe("o que o termo precisa dizer (spec do app §3.6, plataforma §10)", () => {
+        async function texto() {
+            const router = roteador();
+            await router.push("/privacidade");
+            return mount(Privacidade, { global: { plugins: [router] } }).text();
+        }
+
+        test("não promete que nenhum rosto é guardado: os das fotos do evento são", async () => {
+            // A busca funciona comparando a selfie com os rostos já tirados das fotos do evento.
+            const termo = await texto();
+            expect(termo).not.toContain("Não guardamos o seu rosto");
+            expect(termo).toContain("rostos que aparecem nas fotos do evento");
+        });
+
+        test("diz por quanto tempo os dados ficam", async () => {
+            expect(await texto()).toContain("90 dias");
+        });
+
+        test("declara que a busca com a foto de outra pessoa não é impedida totalmente", async () => {
+            expect(await texto()).toContain("foto de outra pessoa");
+        });
+    });
 });

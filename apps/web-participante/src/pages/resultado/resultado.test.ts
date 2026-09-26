@@ -127,10 +127,10 @@ describe("tela de resultado", () => {
         expect(actions.podeCompartilhar()).toBe(false);
     });
 
-    test("compartilhamento recusado pelo navegador cai no download", async () => {
+    test("compartilhamento que o navegador não consegue fazer cai no download", async () => {
         vi.mocked(gerarLinks).mockResolvedValue(linkDaFoto);
-        vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ blob: async () => new Blob([new Uint8Array([1])]) }));
-        vi.stubGlobal("navigator", { canShare: () => true, share: vi.fn().mockRejectedValue(new DOMException("sem gesto", "NotAllowedError")) });
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, blob: async () => new Blob([new Uint8Array([1])]) }));
+        vi.stubGlobal("navigator", { canShare: () => true, share: vi.fn().mockRejectedValue(new TypeError("arquivo não aceito")) });
         state.fotos = resultadoCheio.fotos;
 
         await actions.compartilhar(0);
@@ -138,9 +138,47 @@ describe("tela de resultado", () => {
         expect(baixarArquivo).toHaveBeenCalledWith(linkDaFoto.links[0].url);
     });
 
+    test("toque que venceu enquanto a foto baixava deixa a foto pronta para um segundo toque", async () => {
+        // No iPhone o menu de compartilhar só abre logo depois do toque, e baixar a foto pode
+        // passar desse tempo. Baixar para Arquivos no lugar não põe a foto na galeria dela.
+        vi.mocked(gerarLinks).mockResolvedValue(linkDaFoto);
+        const baixar = vi.fn().mockResolvedValue({ ok: true, blob: async () => new Blob([new Uint8Array([1])]) });
+        const compartilhar = vi
+            .fn()
+            .mockRejectedValueOnce(new DOMException("sem gesto", "NotAllowedError"))
+            .mockResolvedValueOnce(undefined);
+        vi.stubGlobal("fetch", baixar);
+        vi.stubGlobal("navigator", { canShare: () => true, share: compartilhar });
+        state.fotos = resultadoCheio.fotos;
+        state.aberta = 0;
+
+        await actions.compartilhar(0);
+        expect(baixarArquivo).not.toHaveBeenCalled();
+        expect(actions.prontaParaCompartilhar()).toBe(true);
+
+        await actions.compartilhar(0);
+        expect(baixar).toHaveBeenCalledTimes(1);
+        expect(gerarLinks).toHaveBeenCalledTimes(1);
+        expect(compartilhar.mock.calls[1][0].files[0]).toBe(compartilhar.mock.calls[0][0].files[0]);
+        expect(actions.prontaParaCompartilhar()).toBe(false);
+    });
+
+    test("foto que não baixou não vira anexo vazio: cai no download", async () => {
+        vi.mocked(gerarLinks).mockResolvedValue(linkDaFoto);
+        const compartilhar = vi.fn();
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 410, blob: async () => new Blob(["vencido"]) }));
+        vi.stubGlobal("navigator", { canShare: () => true, share: compartilhar });
+        state.fotos = resultadoCheio.fotos;
+
+        await actions.compartilhar(0);
+
+        expect(compartilhar).not.toHaveBeenCalled();
+        expect(baixarArquivo).toHaveBeenCalledWith(linkDaFoto.links[0].url);
+    });
+
     test("cancelar o menu de compartilhar não baixa nada", async () => {
         vi.mocked(gerarLinks).mockResolvedValue(linkDaFoto);
-        vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ blob: async () => new Blob([new Uint8Array([1])]) }));
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, blob: async () => new Blob([new Uint8Array([1])]) }));
         vi.stubGlobal("navigator", { canShare: () => true, share: vi.fn().mockRejectedValue(new DOMException("cancelou", "AbortError")) });
         state.fotos = resultadoCheio.fotos;
 
@@ -188,6 +226,40 @@ describe("tela de resultado", () => {
         actions.voltarParaCamera();
 
         expect(roteador.push).toHaveBeenCalledWith({ name: "evento", params: { slug: "corrida-da-serra" } });
+    });
+
+    test("link reaberto de evento privado volta pela entrada guardada, não pelo slug", () => {
+        // Pelo slug a API recusa evento privado: mandar para /e/<slug> seria uma armadilha.
+        localStorage.setItem("entrada:tok123", "/p/chave-privada");
+        state.token = "tok123";
+        state.slug = "corrida-privada";
+
+        actions.voltarParaCamera();
+
+        expect(roteador.push).toHaveBeenCalledWith("/p/chave-privada");
+        localStorage.clear();
+    });
+
+    test("prazo vencido num link reaberto ainda oferece a volta para a câmera", async () => {
+        // A API recusa antes de dizer o evento; a entrada guardada na busca é o que sobra.
+        localStorage.setItem("entrada:tokVelho", "/e/corrida-da-serra");
+        vi.mocked(getResultado).mockRejectedValue(new ErroDaApi("O prazo para baixar estas fotos venceu. Faça a busca de novo."));
+
+        await actions.init("tokVelho");
+
+        expect(actions.temCaminhoParaCamera()).toBe(true);
+        localStorage.clear();
+    });
+
+    test("um token que falha não herda o evento do resultado anterior", async () => {
+        vi.mocked(getResultado).mockResolvedValueOnce(resultadoCheio);
+        await actions.init("tok123");
+        vi.mocked(getResultado).mockRejectedValueOnce(new ErroDaApi("Não encontramos suas fotos. Faça a busca de novo."));
+
+        await actions.init("tok-de-outro-evento");
+
+        expect(state.slug).toBe("");
+        expect(actions.temCaminhoParaCamera()).toBe(false);
     });
 
     test("sem histórico e sem evento conhecido, não há caminho de volta para oferecer", () => {

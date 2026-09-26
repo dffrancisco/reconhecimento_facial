@@ -15,11 +15,28 @@ const temDeOndeVoltar = Boolean(router.options.history.state.back);
         <p class="rotulo">Privacidade · {{ VERSAO }}</p>
         <h1 class="titulo mt-2">Como cuidamos da sua selfie</h1>
 
+        <!-- Rascunho: precisa de revisão jurídica antes do primeiro evento (plataforma §10). -->
         <section class="caixa mt-5 p-4 text-sm leading-relaxed">
             <p><b>Para que serve.</b> Sua selfie é usada só para encontrar as fotos em que você aparece neste evento.</p>
-            <p class="mt-3"><b>Quanto tempo fica.</b> A selfie é apagada assim que a busca termina. Não guardamos o seu rosto.</p>
-            <p class="mt-3"><b>O que guardamos.</b> Guardamos quais fotos foram encontradas para você, para poder mostrar de novo quando você voltar pelo link.</p>
-            <p class="mt-3"><b>Como apagar.</b> Você pode pedir a exclusão dos seus dados a qualquer momento pelo contato do organizador do evento.</p>
+            <p class="mt-3">
+                <b>A selfie.</b> É apagada assim que a busca termina. O que calculamos dela para comparar também não é guardado.
+            </p>
+            <p class="mt-3">
+                <b>O que guardamos.</b> Para a busca funcionar, guardamos as fotos e os rostos que aparecem nas fotos do evento.
+                Da sua busca, guardamos quais fotos foram encontradas, para mostrar de novo quando você voltar pelo link.
+            </p>
+            <p class="mt-3">
+                <b>Por quanto tempo.</b> Tudo isso é apagado automaticamente depois do evento, no prazo definido pela organização —
+                em geral, 90 dias depois do fim.
+            </p>
+            <p class="mt-3">
+                <b>Uso indevido.</b> Alguém pode tentar buscar com a foto de outra pessoa. Limitamos isso (há um limite de buscas
+                por aparelho e as buscas ficam registradas), mas não dá para impedir totalmente.
+            </p>
+            <p class="mt-3">
+                <b>Como apagar e contato.</b> Você pode pedir a exclusão dos seus dados a qualquer momento à organização do evento,
+                que é também o contato para dúvidas sobre este termo.
+            </p>
         </section>
 
         <button v-if="temDeOndeVoltar" type="button" class="pilula-vazada mt-6" @click="router.back()">
