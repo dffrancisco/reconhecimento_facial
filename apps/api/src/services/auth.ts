@@ -13,6 +13,6 @@ export function exigirSegredoOperador(): void {
 export async function autorizarOperador(contexto: iContexto): Promise<number> {
     exigirSegredoOperador();
     const idOperador = contexto.authorization ? conferirToken(contexto.authorization, config.operadorSegredo) : null;
-    if (idOperador === null) throw new ErroTratado("Sessão expirada, faça login novamente.");
+    if (idOperador === null) throw new ErroTratado("Sessão expirada, faça login novamente.", "sessao_expirada");
     return idOperador;
 }

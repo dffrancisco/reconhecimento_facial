@@ -125,6 +125,8 @@ describe("login do painel", () => {
         const r = await chamar("painel", { call: "getPainel" });
         assert.strictEqual(r.status, 422);
         assert.match(String(r.corpo.msg), /Sessão expirada/);
+        // A tela volta ao login pelo código, sem depender do texto.
+        assert.strictEqual(r.corpo.codigo, "sessao_expirada");
     });
 });
 
