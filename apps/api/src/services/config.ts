@@ -19,6 +19,8 @@ export interface iConfig {
     workerConcorrencia: number;
     sharpConcorrencia: number;
     arquivoLinkValidadeS: number;
+    buscaLimiteIp: number;
+    confiarCloudflare: boolean;
 }
 
 const OBRIGATORIAS: Record<"comum" | tPapel, string[]> = {
@@ -81,6 +83,8 @@ export function carregarConfig(env: NodeJS.ProcessEnv): iConfig {
         // vision decodificar e para a API responder.
         sharpConcorrencia: helper.numero(env.SHARP_CONCORRENCIA, Math.max(1, cpus().length - 2), "SHARP_CONCORRENCIA"),
         arquivoLinkValidadeS: helper.numero(env.ARQUIVO_LINK_VALIDADE_S, 3600, "ARQUIVO_LINK_VALIDADE_S"),
+        buscaLimiteIp: helper.numero(env.BUSCA_LIMITE_IP, 10, "BUSCA_LIMITE_IP"),
+        confiarCloudflare: env.CONFIAR_CLOUDFLARE === "true",
     };
 }
 
