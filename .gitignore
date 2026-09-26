@@ -8,3 +8,6 @@ infra/certs/*
 __pycache__/
 .pytest_cache/
 dados/
+
+# Rascunhos das skills (brainstorm, planos em execução)
+.superpowers/
