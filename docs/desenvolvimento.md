@@ -142,3 +142,29 @@ a câmera no celular, é preciso HTTPS (por exemplo, um túnel).
 A selfie precisa ter um rosto só: foto em grupo volta com "Encontramos mais de um rosto".
 E a API limita as buscas por IP (10 a cada 10 minutos, `BUSCA_LIMITE_IP`); pelo nginx de
 dev todo pedido chega com o IP do container, então testes seguidos esbarram nesse limite.
+
+## Upload do fotógrafo e painel da estação
+
+Em desenvolvimento, com recarregamento automático:
+
+```bash
+docker compose -f docker-compose.dev.yml up -d --build api-estacao worker-estacao
+npm run dev -w apps/web-fotografo        # http://localhost:5174
+npm run test -w apps/web-fotografo       # Vitest + Vue Test Utils, sem API no ar
+```
+
+O Vite encaminha `/api` para a API da estação de dev (`127.0.0.1:3001`).
+
+- **Painel:** `http://localhost:5174/#/estacao`, com o mesmo login do admin (`ana` / `senha-dev-123` depois do `criar-operador`). Ele mostra o evento em andamento (o mais recente não encerrado na estação) e, para cada fotógrafo vinculado, o link e o QR de upload.
+- **Envio:** abra o link do fotógrafo (`/#/?t=<token_upload>`) e solte uma pasta de JPEGs.
+
+O evento, o fotógrafo e o vínculo nascem no admin do VPS (`apps/api/src/_ADMIN/evento/evento.http` e `fotografo/fotografo.http`) e chegam à estação pela sincronização, a cada 60 s.
+
+**Na estação de verdade:**
+- `docker-compose.estacao.yml` sobe o serviço `web` (a tela, num nginx) atrás do mesmo Traefik da API.
+- No `.env.estacao`, configure `OPERADOR_SEGREDO` (sem ele o login do painel se recusa) e `ENDERECO_LAN` (o IP da estação na rede do evento, que entra nos links e QR). Sem `ENDERECO_LAN`, o painel monta os links com o endereço pelo qual foi aberto e avisa quando ele é `localhost`.
+
+**Detalhes do envio:**
+- Os arquivos chegam em pedaços em `RAIZ_UPLOADS` (padrão `/data/originais/_uploads`), no mesmo volume dos originais.
+- Envio parado há mais de 24 h é apagado pelo worker.
+- Os testes de integração do upload e do painel usam o banco `fotos_estacao` de dev e encerram os eventos que criam.

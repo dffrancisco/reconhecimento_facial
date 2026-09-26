@@ -60,6 +60,12 @@ services:
       ESTACAO_CHAVE: dev-somente-local-dev-somente-local
       VPS_URL: http://api-vps:3000
       VISION_URL: http://vision-gpu:8000
+      # O painel da estação assina a sessão do operador com ele (sem ele, o login se recusa).
+      OPERADOR_SEGREDO: dev-somente-local-dev-somente-local
+      # Pedaço pequeno em dev: as fotos de exemplo têm ~1 MB e o envio passa por vários pedaços.
+      UPLOAD_PEDACO_MB: "1"
+    volumes:
+      - originais:/data/originais
     ports:
       - "127.0.0.1:3001:3000"
     depends_on:

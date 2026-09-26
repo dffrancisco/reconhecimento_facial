@@ -49,11 +49,30 @@ services:
     depends_on:
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
+    # Os envios dos fotógrafos chegam em /data/originais/_uploads: no mesmo volume dos
+    # originais, o processamento só renomeia o arquivo, sem copiar.
+    volumes:
+      - originais:/data/originais
     labels:
       - traefik.enable=true
       - traefik.http.routers.api.rule=PathPrefix(`/api`) || Path(`/test`)
       - traefik.http.routers.api.entrypoints=lan
       - traefik.http.services.api.loadbalancer.server.port=3000
+    restart: unless-stopped
+
+  # Tela do fotógrafo (/#/?t=...) e painel da estação (/#/estacao). Pega tudo que não é /api:
+  # a regra da API é mais longa e o Traefik a prioriza.
+  web:
+    build: { context: ., dockerfile: apps/web-fotografo/Dockerfile }
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.web.rule=PathPrefix(`/`)
+      - traefik.http.routers.web.entrypoints=lan
+      - traefik.http.services.web.loadbalancer.server.port=80
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/health"]
+      interval: 10s
+      retries: 5
     restart: unless-stopped
 
   worker:
