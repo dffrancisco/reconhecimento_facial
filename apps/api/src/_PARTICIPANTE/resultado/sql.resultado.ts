@@ -51,3 +51,23 @@ export async function fotosDaBuscaPorIds(
 export async function somarDownloads(conexao: ConexaoPostgres, idBusca: number, quantos: number): Promise<void> {
     await conexao.executeParamCount("UPDATE busca SET qtd_downloads = qtd_downloads + ? WHERE id_busca = ?", [quantos, idBusca]);
 }
+
+export async function criarArquivoZip(conexao: ConexaoPostgres, idEvento: number, idBusca: number): Promise<number> {
+    const [linha] = await conexao.queryParam<{ id_arquivo_zip: number }>(
+        `INSERT INTO arquivo_zip (id_evento, id_busca, parte, status, expira_em)
+         VALUES (?, ?, 1, 'pendente', now() + interval '7 days') RETURNING id_arquivo_zip`,
+        [idEvento, idBusca]
+    );
+    return linha.id_arquivo_zip;
+}
+
+export async function zipDaBusca(
+    conexao: ConexaoPostgres,
+    idBusca: number,
+    idArquivoZip: number
+): Promise<{ id_arquivo_zip: number; id_evento: number; status: string } | undefined> {
+    return conexao.queryOneParam("SELECT id_arquivo_zip, id_evento, status FROM arquivo_zip WHERE id_arquivo_zip = ? AND id_busca = ?", [
+        idArquivoZip,
+        idBusca,
+    ]);
+}

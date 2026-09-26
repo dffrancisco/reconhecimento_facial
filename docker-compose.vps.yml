@@ -68,6 +68,21 @@ services:
       - selfies:/data/selfies
       - fotos:/data/fotos
       - marcas:/data/marcas
+      - zips:/data/zips
+
+  worker:
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    command: ["node", "dist/worker.js"]
+    # O worker não escuta HTTP: o healthcheck da imagem (GET /test) nunca passaria.
+    healthcheck: { disable: true }
+    env_file: .env.vps
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    volumes:
+      - fotos:/data/fotos:ro
+      - zips:/data/zips
+    restart: unless-stopped
 
   arquivos:
     build: { context: ./infra/nginx }

@@ -26,6 +26,16 @@ export default class Resultado implements iRota {
         return this.ctrl.situacao(String(req.body.token));
     }
 
+    async pedirZip(req: Request) {
+        if (!req.body.token) return { msg: "Token obrigatório", error: true };
+        return this.ctrl.pedirZip(String(req.body.token));
+    }
+
+    async situacaoZip(req: Request) {
+        if (!req.body.token || !req.body.id_arquivo_zip) return { msg: "Token e id_arquivo_zip obrigatórios", error: true };
+        return this.ctrl.situacaoZip(String(req.body.token), Number(req.body.id_arquivo_zip));
+    }
+
     async gerarLinks(req: Request) {
         if (!req.body.token) return { msg: "Token obrigatório", error: true };
         const ids = Array.isArray(req.body.ids) ? req.body.ids.map(Number).filter(Number.isInteger) : [];

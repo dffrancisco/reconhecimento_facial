@@ -22,6 +22,7 @@ export interface iConfig {
     buscaLimiteIp: number;
     confiarCloudflare: boolean;
     raizSelfies: string;
+    raizZips: string;
 }
 
 const OBRIGATORIAS: Record<"comum" | tPapel, string[]> = {
@@ -87,6 +88,7 @@ export function carregarConfig(env: NodeJS.ProcessEnv): iConfig {
         buscaLimiteIp: helper.numero(env.BUSCA_LIMITE_IP, 10, "BUSCA_LIMITE_IP"),
         confiarCloudflare: env.CONFIAR_CLOUDFLARE === "true",
         raizSelfies: env.RAIZ_SELFIES || "/data/selfies",
+        raizZips: env.RAIZ_ZIPS || "/data/zips",
     };
 }
 
