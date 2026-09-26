@@ -27,4 +27,9 @@ export default class Galeria implements iRota {
         if (!req.body.chave) return { msg: "Chave obrigatória", error: true };
         return this.ctrl.pedirZip(String(req.body.chave));
     }
+
+    async situacaoZip(req: Request) {
+        if (!req.body.chave || !req.body.id_arquivo_zip) return { msg: "Chave e id_arquivo_zip obrigatórios", error: true };
+        return this.ctrl.situacaoZip(String(req.body.chave), Number(req.body.id_arquivo_zip));
+    }
 }

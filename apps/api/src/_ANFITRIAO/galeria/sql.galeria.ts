@@ -67,3 +67,16 @@ export async function zipsValidosDoEvento(conexao: ConexaoPostgres, idEvento: nu
     );
     return linhas.map((l) => l.id_arquivo_zip);
 }
+
+// Só o ZIP do evento inteiro (`id_busca IS NULL`): a chave do anfitrião não entrega o ZIP
+// que um participante pediu da busca dele.
+export async function zipDoEvento(
+    conexao: ConexaoPostgres,
+    idEvento: number,
+    idArquivoZip: number
+): Promise<{ id_arquivo_zip: number; status: string } | undefined> {
+    return conexao.queryOneParam(
+        "SELECT id_arquivo_zip, status FROM arquivo_zip WHERE id_arquivo_zip = ? AND id_evento = ? AND id_busca IS NULL",
+        [idArquivoZip, idEvento]
+    );
+}

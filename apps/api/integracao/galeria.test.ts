@@ -122,6 +122,52 @@ describe("pedirZip", () => {
     });
 });
 
+describe("situacaoZip", () => {
+    test("parte pronta devolve o link assinado; pendente, só a situação", async () => {
+        // Sem esta chamada o anfitrião pedia o ZIP e nunca recebia o link. As linhas entram
+        // direto no banco, fora da fila: um worker ligado montaria o ZIP no meio do teste.
+        const zipCom = async (status: string) => {
+            const [linha] = await conexao.queryParam<{ id_arquivo_zip: number }>(
+                `INSERT INTO arquivo_zip (id_evento, id_busca, parte, status, expira_em)
+                 VALUES (?, NULL, 1, ?, now() + interval '7 days') RETURNING id_arquivo_zip`,
+                [idEvento, status]
+            );
+            return linha.id_arquivo_zip;
+        };
+        const pendente = await zipCom("pendente");
+        const pronto = await zipCom("pronto");
+
+        const rPendente = await chamar({ call: "situacaoZip", chave: chaveAnfitriao, id_arquivo_zip: pendente });
+        const rPronto = await chamar({ call: "situacaoZip", chave: chaveAnfitriao, id_arquivo_zip: pronto });
+
+        assert.deepStrictEqual(rPendente.corpo, { status: "pendente" });
+        assert.strictEqual(rPronto.corpo.status, "pronto");
+        assert.match(String(rPronto.corpo.url), new RegExp(`^/arquivos/zips/${idEvento}/${pronto}\\.zip\\?md5=`));
+    });
+
+    test("a chave do anfitrião não entrega o ZIP da busca de um participante", async () => {
+        const [busca] = await conexao.queryParam<{ id_busca: number }>(
+            `INSERT INTO busca (id_evento, token, status, qtd_fotos, consentimento_em, versao_termo)
+             VALUES (?, ?, 'liberada', 0, now(), 'v1') RETURNING id_busca`,
+            [idEvento, `token-gal-${Date.now()}`]
+        );
+        const [zip] = await conexao.queryParam<{ id_arquivo_zip: number }>(
+            `INSERT INTO arquivo_zip (id_evento, id_busca, parte, status, expira_em)
+             VALUES (?, ?, 1, 'pronto', now() + interval '7 days') RETURNING id_arquivo_zip`,
+            [idEvento, busca.id_busca]
+        );
+
+        const r = await chamar({ call: "situacaoZip", chave: chaveAnfitriao, id_arquivo_zip: zip.id_arquivo_zip });
+        assert.strictEqual(r.status, 422);
+    });
+
+    test("chave de outro evento não enxerga o arquivo", async () => {
+        const { corpo } = await chamar({ call: "pedirZip", chave: chaveAnfitriao });
+        const r = await chamar({ call: "situacaoZip", chave: "chave-que-nao-existe", id_arquivo_zip: (corpo.partes as number[])[0] });
+        assert.strictEqual(r.status, 422);
+    });
+});
+
 after(async () => {
     servidor?.close();
     await conexao?.close();

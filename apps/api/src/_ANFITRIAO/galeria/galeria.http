@@ -12,3 +12,9 @@ POST {{vps}}/api/anfitriao/galeria
 Content-Type: application/json
 
 { "call": "pedirZip", "chave": "{{chave}}" }
+
+### Situação de uma parte do ZIP (o id vem de pedirZip)
+POST {{vps}}/api/anfitriao/galeria
+Content-Type: application/json
+
+{ "call": "situacaoZip", "chave": "{{chave}}", "id_arquivo_zip": 1 }

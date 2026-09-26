@@ -1,9 +1,9 @@
 import ConexaoPostgres from "../../db/conexaoPostgres";
 import { ErroTratado } from "../../services/erro";
-import { urlDaFoto } from "../../services/linkArquivo";
+import { urlDaFoto, urlDoZip } from "../../services/linkArquivo";
 import { criarFila } from "../../services/fila";
 import { FOTOS_POR_PARTE, NOME_FILA as FILA_ZIP } from "../../jobs/zip";
-import { contarFotosVisiveis, criarZipsDoEvento, eventoPorChaveAnfitriao, fotosDoEvento, zipsValidosDoEvento } from "./sql.galeria";
+import { contarFotosVisiveis, criarZipsDoEvento, eventoPorChaveAnfitriao, fotosDoEvento, zipDoEvento, zipsValidosDoEvento } from "./sql.galeria";
 
 export default class GaleriaCtrl {
     constructor(private conexao: ConexaoPostgres) {}
@@ -37,6 +37,13 @@ export default class GaleriaCtrl {
         for (const id of ids) await fila.add(FILA_ZIP, { id_arquivo_zip: id }, { attempts: 3 });
 
         return { partes: ids, status: "pendente" };
+    }
+
+    async situacaoZip(chave: string, idArquivoZip: number): Promise<{ status: string; url?: string }> {
+        const evento = await this.exigirEvento(chave);
+        const zip = await zipDoEvento(this.conexao, evento.id_evento, idArquivoZip);
+        if (!zip) throw new ErroTratado("Não encontramos este arquivo.");
+        return zip.status === "pronto" ? { status: zip.status, url: urlDoZip(evento.id_evento, zip.id_arquivo_zip) } : { status: zip.status };
     }
 
     private async exigirEvento(chave: string) {
