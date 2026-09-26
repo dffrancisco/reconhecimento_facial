@@ -28,7 +28,7 @@ describe("carregarConfig", () => {
     });
 
     test("estação exige VPS_URL e não exige ARQUIVO_SEGREDO", () => {
-        assert.throws(() => carregarConfig({ ...BASE, PAPEL: "estacao" }), /faltando para o papel estacao: VPS_URL$/);
+        assert.throws(() => carregarConfig({ ...BASE, PAPEL: "estacao" }), /faltando para o papel estacao: VPS_URL, VISION_URL$/);
     });
 
     test("lista todas as variáveis faltando de uma vez", () => {
@@ -81,6 +81,7 @@ describe("carregarConfig", () => {
             ...BASE,
             PAPEL: "estacao",
             VPS_URL: "https://admin.exemplo.com.br",
+            VISION_URL: "http://vision:8000",
             PORTA: "8080",
             POSTGRES_PORT: "5433",
             REDIS_PREFIXO: "teste:",

@@ -49,6 +49,7 @@ before(async () => {
         REDIS_URL: "redis://127.0.0.1:6380",
         ESTACAO_CHAVE: "a".repeat(32),
         VPS_URL: `http://127.0.0.1:${(servidorVps.address() as AddressInfo).port}`,
+        VISION_URL: "http://127.0.0.1:1",
         RAIZ_MARCAS: "/tmp/marcas-teste-sincronizar",
     });
 });

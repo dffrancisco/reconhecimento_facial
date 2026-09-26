@@ -13,11 +13,13 @@ export interface iConfig {
     raizFotos: string;
     raizOriginais: string;
     raizPublicar: string;
+    visionUrl: string;
+    workerConcorrencia: number;
 }
 
 const OBRIGATORIAS: Record<"comum" | tPapel, string[]> = {
     comum: ["POSTGRES_HOST", "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB", "REDIS_URL", "ESTACAO_CHAVE"],
-    estacao: ["VPS_URL"],
+    estacao: ["VPS_URL", "VISION_URL"],
     vps: ["ARQUIVO_SEGREDO", "OPERADOR_SEGREDO"],
 };
 
@@ -69,6 +71,8 @@ export function carregarConfig(env: NodeJS.ProcessEnv): iConfig {
         raizFotos: env.RAIZ_FOTOS || "/data/fotos",
         raizOriginais: env.RAIZ_ORIGINAIS || "/data/originais",
         raizPublicar: env.RAIZ_PUBLICAR || "/data/publicar",
+        visionUrl: env.VISION_URL ?? "",
+        workerConcorrencia: helper.numero(env.WORKER_CONCORRENCIA, 16, "WORKER_CONCORRENCIA"),
     };
 }
 
