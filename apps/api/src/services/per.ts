@@ -82,7 +82,7 @@ export default async function per(
         }
 
         if (erro instanceof ErroTratado) {
-            res.status(422).send({ msg: erro.message });
+            res.status(422).send(erro.codigo ? { msg: erro.message, codigo: erro.codigo } : { msg: erro.message });
             return;
         }
 

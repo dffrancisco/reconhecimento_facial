@@ -103,6 +103,35 @@ describe("carregarConfig", () => {
     });
 });
 
+describe("configuração do upload do fotógrafo", () => {
+    const ESTACAO = { ...BASE, PAPEL: "estacao", VPS_URL: "https://admin.exemplo.com.br", VISION_URL: "http://vision:8000" };
+
+    test("aplica os padrões do upload", () => {
+        const c = carregarConfig(ESTACAO);
+
+        // Mesmo volume dos originais: o processamento só renomeia o arquivo recebido.
+        assert.strictEqual(c.raizUploads, "/data/originais/_uploads");
+        assert.strictEqual(c.uploadPedacoBytes, 8 * 1024 * 1024);
+        assert.strictEqual(c.enderecoLan, null);
+        assert.strictEqual(c.enderecoTunel, null);
+    });
+
+    test("lê o tamanho do pedaço em MB e os endereços sem barra no fim", () => {
+        const c = carregarConfig({
+            ...ESTACAO,
+            UPLOAD_PEDACO_MB: "4",
+            RAIZ_UPLOADS: "/tmp/up",
+            ENDERECO_LAN: "http://192.168.0.10/",
+            ENDERECO_TUNEL: "https://estacao.exemplo.com.br",
+        });
+
+        assert.strictEqual(c.uploadPedacoBytes, 4 * 1024 * 1024);
+        assert.strictEqual(c.raizUploads, "/tmp/up");
+        assert.strictEqual(c.enderecoLan, "http://192.168.0.10");
+        assert.strictEqual(c.enderecoTunel, "https://estacao.exemplo.com.br");
+    });
+});
+
 describe("iniciarConfig", () => {
     test("preenche o objeto compartilhado", () => {
         const devolvido = iniciarConfig({

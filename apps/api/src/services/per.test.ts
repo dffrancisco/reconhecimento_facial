@@ -35,6 +35,10 @@ class RotaFalsa {
         throw new ErroTratado("Evento encerrado");
     }
 
+    async tratadoComCodigo() {
+        throw new ErroTratado("Este link não aceita mais fotos.", "link_invalido");
+    }
+
     async quebrado() {
         throw new Error("detalhe interno");
     }
@@ -173,6 +177,13 @@ describe("per", () => {
 
         assert.strictEqual(r.status, 422);
         assert.deepStrictEqual(r.corpo, { msg: "Evento encerrado" });
+    });
+
+    test("ErroTratado com código vira 422 com msg e codigo, para a tela reagir sem ler o texto", async () => {
+        const r = await chamar("/rota", { call: "tratadoComCodigo" });
+
+        assert.strictEqual(r.status, 422);
+        assert.deepStrictEqual(r.corpo, { msg: "Este link não aceita mais fotos.", codigo: "link_invalido" });
     });
 
     test("erro inesperado vira 500 sem detalhe interno e fecha a conexão", async () => {

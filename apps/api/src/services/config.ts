@@ -23,6 +23,10 @@ export interface iConfig {
     confiarCloudflare: boolean;
     raizSelfies: string;
     raizZips: string;
+    raizUploads: string;
+    uploadPedacoBytes: number;
+    enderecoLan: string | null;
+    enderecoTunel: string | null;
 }
 
 const OBRIGATORIAS: Record<"comum" | tPapel, string[]> = {
@@ -38,6 +42,10 @@ const helper = {
         if (!Number.isInteger(n) || n <= 0)
             throw new Error(`[Config] ${nome} deve ser um número inteiro positivo (recebido: "${valor}")`);
         return n;
+    },
+    // Sem barra no fim: os links de upload são montados como `${endereco}/#/?t=...`.
+    endereco(valor: string | undefined): string | null {
+        return valor ? valor.replace(/\/+$/, "") : null;
     },
 };
 
@@ -89,6 +97,11 @@ export function carregarConfig(env: NodeJS.ProcessEnv): iConfig {
         confiarCloudflare: env.CONFIAR_CLOUDFLARE === "true",
         raizSelfies: env.RAIZ_SELFIES || "/data/selfies",
         raizZips: env.RAIZ_ZIPS || "/data/zips",
+        // No volume dos originais: o processamento só renomeia o arquivo recebido, sem copiar 25 MB.
+        raizUploads: env.RAIZ_UPLOADS || "/data/originais/_uploads",
+        uploadPedacoBytes: helper.numero(env.UPLOAD_PEDACO_MB, 8, "UPLOAD_PEDACO_MB") * 1024 * 1024,
+        enderecoLan: helper.endereco(env.ENDERECO_LAN),
+        enderecoTunel: helper.endereco(env.ENDERECO_TUNEL),
     };
 }
 
