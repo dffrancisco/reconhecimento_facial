@@ -7,6 +7,7 @@ import { iniciarWorkerPublicarFoto } from "./jobs/publicarFoto";
 import { agendarSincronizacao, iniciarWorkerSincronizar } from "./jobs/sincronizar";
 import { iniciarSinalPeriodico } from "./jobs/sinal";
 import { iniciarWorkerZip } from "./jobs/zip";
+import { iniciarLimpezaUploads } from "./jobs/limparUploads";
 
 try {
     iniciarConfig(process.env);
@@ -28,8 +29,9 @@ async function main(): Promise<void> {
     iniciarWorkerSincronizar();
     await agendarSincronizacao();
     const temporizadorSinal = iniciarSinalPeriodico();
+    const temporizadorLimpeza = iniciarLimpezaUploads();
 
-    console.log(`[Worker] papel ${config.papel} | filas processar-foto, publicar-foto, sincronizar | sinal a cada 30s`);
+    console.log(`[Worker] papel ${config.papel} | filas processar-foto, publicar-foto, sincronizar | sinal a cada 30s | limpeza de envios abandonados a cada hora`);
 
     let encerrando = false;
     const encerrar = (evento: string) => () => {
@@ -37,6 +39,7 @@ async function main(): Promise<void> {
         encerrando = true;
         console.log(`[Worker] ${evento} recebido, encerrando...`);
         clearInterval(temporizadorSinal);
+        clearInterval(temporizadorLimpeza);
         Promise.allSettled([fecharFila(), fecharBanco()]).finally(() => process.exit(0));
     };
     process.on("SIGINT", encerrar("SIGINT"));

@@ -72,3 +72,56 @@ export async function errosDoEvento(conexao: ConexaoPostgres, idEvento: number):
         [idEvento]
     );
 }
+
+export interface LinhaFotoComErro {
+    id_foto: number;
+    id_evento: number;
+    id_evento_fotografo: number | null;
+    hash_arquivo: string;
+    nome_arquivo: string;
+    etapa: string;
+    caminho_original: string | null;
+    id_upload: number | null;
+}
+
+const SELECT_FOTO_COM_ERRO = `SELECT fo.id_foto, fo.id_evento, fo.id_evento_fotografo, fo.hash_arquivo, fo.nome_arquivo, fo.etapa, fo.caminho_original,
+        (SELECT u.id_upload FROM upload u
+          WHERE u.id_evento_fotografo = fo.id_evento_fotografo AND u.hash_arquivo = fo.hash_arquivo
+          ORDER BY u.id_upload DESC LIMIT 1) AS id_upload
+   FROM foto fo`;
+
+export async function fotoComErro(conexao: ConexaoPostgres, idFoto: number): Promise<LinhaFotoComErro[]> {
+    return conexao.queryParam<LinhaFotoComErro>(`${SELECT_FOTO_COM_ERRO} WHERE fo.id_foto = ? AND fo.erro IS NOT NULL`, [idFoto]);
+}
+
+export async function fotosComErroDoEvento(conexao: ConexaoPostgres, idEvento: number): Promise<LinhaFotoComErro[]> {
+    return conexao.queryParam<LinhaFotoComErro>(`${SELECT_FOTO_COM_ERRO} WHERE fo.id_evento = ? AND fo.erro IS NOT NULL`, [idEvento]);
+}
+
+export async function limparErro(conexao: ConexaoPostgres, idFoto: number): Promise<void> {
+    await conexao.executeParamCount("UPDATE foto SET erro = NULL, erro_etapa = NULL WHERE id_foto = ?", [idFoto]);
+}
+
+export async function contarEmProcessamento(conexao: ConexaoPostgres, idEvento: number): Promise<number> {
+    const linha = await conexao.queryOneParam<{ n: number }>(
+        "SELECT count(*)::int AS n FROM foto WHERE id_evento = ? AND etapa <> 'publicada' AND erro IS NULL",
+        [idEvento]
+    );
+    return linha?.n ?? 0;
+}
+
+export async function eventoAberto(conexao: ConexaoPostgres, idEvento: number): Promise<boolean> {
+    const linha = await conexao.queryOneParam<{ id_evento: number }>(
+        "SELECT id_evento FROM evento WHERE id_evento = ? AND encerrado_em IS NULL AND deletado = 'N'",
+        [idEvento]
+    );
+    return Boolean(linha);
+}
+
+// Plataforma §10: os rostos locais são apagados no encerramento. As fotos publicadas seguem
+// no VPS; os originais ficam como acervo do operador.
+export async function encerrar(conexao: ConexaoPostgres, idEvento: number): Promise<void> {
+    await conexao.executeParamCount("UPDATE evento SET encerrado_em = now() WHERE id_evento = ?", [idEvento]);
+    await conexao.executeParamCount("DELETE FROM numero_peito WHERE id_evento = ?", [idEvento]);
+    await conexao.executeParamCount("DELETE FROM rosto WHERE id_evento = ?", [idEvento]);
+}

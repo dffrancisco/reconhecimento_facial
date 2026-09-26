@@ -1,10 +1,25 @@
 import fs from "node:fs/promises";
 import ConexaoPostgres from "../../db/conexaoPostgres";
 import { config } from "../../services/config";
+import { ErroTratado } from "../../services/erro";
+import { criarFila } from "../../services/fila";
+import { DadosProcessarFoto, NOME_FILA } from "../../jobs/processarFoto";
 import { ultimaSincronizacao } from "../../services/sincronizacaoEstacao";
 import { montarSinal } from "../../jobs/sinal";
 import { caminhoParcial } from "../../_FOTOGRAFO/upload/ctrl.upload";
-import { errosDoEvento, eventoEmAndamento, filaDoEvento, fotografosDoEvento, LinhaErro } from "./sql.painel";
+import {
+    contarEmProcessamento,
+    encerrar,
+    errosDoEvento,
+    eventoAberto,
+    eventoEmAndamento,
+    filaDoEvento,
+    fotoComErro,
+    fotografosDoEvento,
+    fotosComErroDoEvento,
+    LinhaErro,
+    limparErro,
+} from "./sql.painel";
 
 interface Gpu {
     utilizacao: number;
@@ -93,5 +108,56 @@ export default class PainelCtrl {
             ),
             em_processamento: fila.recebidas + fila.rostos + fila.derivados + fila.esperando_publicar,
         };
+    }
+
+    async reprocessar(idFoto: number | null): Promise<{ reenfileiradas: number; sem_arquivo: number }> {
+        let fotos;
+        if (idFoto !== null) fotos = await fotoComErro(this.conexao, idFoto);
+        else {
+            const evento = await eventoEmAndamento(this.conexao);
+            fotos = evento ? await fotosComErroDoEvento(this.conexao, evento.id_evento) : [];
+        }
+
+        const fila = criarFila<DadosProcessarFoto>(NOME_FILA);
+        let reenfileiradas = 0;
+        let semArquivo = 0;
+        for (const foto of fotos) {
+            const arquivo = await arquivoDoErro(foto);
+            if (!arquivo) {
+                semArquivo++;
+                continue;
+            }
+
+            // O job que falhou continua na fila com o mesmo id; sem removê-lo, o `add` abaixo
+            // devolveria o job velho e nada seria reprocessado.
+            const jobId = `${foto.id_evento}_${foto.hash_arquivo}`;
+            await (await fila.getJob(jobId))?.remove();
+            await limparErro(this.conexao, foto.id_foto);
+            await fila.add(
+                NOME_FILA,
+                {
+                    id_evento: foto.id_evento,
+                    id_evento_fotografo: foto.id_evento_fotografo,
+                    hash_arquivo: foto.hash_arquivo,
+                    nome_arquivo: foto.nome_arquivo,
+                    origem: arquivo,
+                    // O original fica onde está; só o arquivo recebido (falha antes da etapa
+                    // original) é movido, como no envio normal.
+                    copiar: arquivo === foto.caminho_original,
+                },
+                { jobId, attempts: 5, backoff: { type: "exponential", delay: 1000 } }
+            );
+            reenfileiradas++;
+        }
+        return { reenfileiradas, sem_arquivo: semArquivo };
+    }
+
+    async encerrarEvento(idEvento: number): Promise<{ encerrado: true }> {
+        await this.conexao.openTransaction();
+        if (!(await eventoAberto(this.conexao, idEvento))) throw new ErroTratado("Este evento já foi encerrado.");
+        if ((await contarEmProcessamento(this.conexao, idEvento)) > 0)
+            throw new ErroTratado("Ainda há fotos em processamento. Espere a fila esvaziar para encerrar.", "em_processamento");
+        await encerrar(this.conexao, idEvento);
+        return { encerrado: true };
     }
 }
