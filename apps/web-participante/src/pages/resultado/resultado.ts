@@ -1,11 +1,12 @@
 import { reactive } from "vue";
 import { router } from "../../router";
 import { baixarArquivo } from "../../ts/arquivos";
+import { esperarPartes } from "../../ts/zip";
 import type { FotoDoResultado } from "./interfaces";
 import { getResultado, gerarLinks, pedirZip, situacaoZip } from "./services/resultado.service";
 
-const TENTATIVAS_ZIP = 60;
-const ESPERA_ZIP_MS = 1000;
+// O ZIP de uma busca é pequeno: um minuto de espera cobre o worker com folga.
+const ESPERA_ZIP = { tentativas: 60, esperaMs: 1000 };
 
 export const state = reactive({
     token: "",
@@ -123,26 +124,14 @@ export const actions = {
         }
     },
 
-    async esperarParte(idArquivoZip: number): Promise<string | null> {
-        for (let tentativa = 0; tentativa < TENTATIVAS_ZIP; tentativa++) {
-            const situacao = await situacaoZip(state.token, idArquivoZip);
-            if (situacao.status === "pronto" && situacao.url) return situacao.url;
-            if (situacao.status === "erro") return null;
-            await new Promise((resolve) => setTimeout(resolve, ESPERA_ZIP_MS));
-        }
-        return null;
-    },
-
     async pedirZip(): Promise<void> {
         state.zip = "montando";
         state.mensagem = "";
         try {
-            // Acima de 500 fotos a API divide o ZIP em partes: todas entram, senão o resto
-            // ficaria de fora sem ninguém perceber.
             const { partes } = await pedirZip(state.token);
-            const urls = await Promise.all(partes.map((parte) => actions.esperarParte(parte)));
-            if (urls.length > 0 && urls.every((url) => url !== null)) {
-                state.urlsZip = urls as string[];
+            const resultado = await esperarPartes(partes, (id) => situacaoZip(state.token, id), ESPERA_ZIP);
+            if (resultado.situacao === "pronto") {
+                state.urlsZip = resultado.urls;
                 state.zip = "pronto";
                 return;
             }
