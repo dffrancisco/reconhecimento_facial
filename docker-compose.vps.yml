@@ -66,6 +66,8 @@ services:
     restart: unless-stopped
     volumes:
       - selfies:/data/selfies
+      - fotos:/data/fotos
+      - marcas:/data/marcas
 
   vision:
     build:
@@ -88,3 +90,5 @@ volumes:
       type: tmpfs
       device: tmpfs
       o: "size=256m,uid=1000"
+  fotos:
+  marcas:

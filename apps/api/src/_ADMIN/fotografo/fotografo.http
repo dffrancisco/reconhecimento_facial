@@ -1,0 +1,23 @@
+@vps = http://localhost:3002
+@token = COLE_O_TOKEN_DO_LOGIN_AQUI
+
+### Criar fotógrafo
+POST {{vps}}/api/admin/fotografo
+Content-Type: application/json
+Authorization: {{token}}
+
+{ "call": "criarFotografo", "nome": "João", "telefone": "+5511999998888" }
+
+### Listar
+POST {{vps}}/api/admin/fotografo
+Content-Type: application/json
+Authorization: {{token}}
+
+{ "call": "listarFotografos" }
+
+### Vincular a um evento (gera o link/QR de upload)
+POST {{vps}}/api/admin/fotografo
+Content-Type: application/json
+Authorization: {{token}}
+
+{ "call": "vincularFotografo", "id_evento": 1, "id_fotografo": 1 }

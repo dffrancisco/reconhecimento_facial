@@ -9,13 +9,19 @@
         "start": "node dist/index.js",
         "typecheck": "tsc -p tsconfig.json",
         "test": "tsx --test $(find src -name '*.test.ts')",
-        "test:integracao": "tsx --test --test-concurrency=1 $(find integracao -name '*.test.ts')"
+        "test:integracao": "tsx --test --test-concurrency=1 $(find integracao -name '*.test.ts')",
+        "criar-operador": "tsx src/scripts/criarOperador.ts",
+        "ingerir": "tsx src/scripts/ingerir.ts"
     },
     "dependencies": {
+        "bullmq": "^5.34.0",
         "dotenv": "^17.4.2",
+        "exifr": "^7.1.3",
         "express": "^5.2.1",
         "express-fileupload": "^1.5.2",
-        "pg": "^8.23.0"
+        "ioredis": "^5.4.1",
+        "pg": "^8.23.0",
+        "sharp": "^0.33.5"
     },
     "devDependencies": {
         "@types/express": "^5.0.6",

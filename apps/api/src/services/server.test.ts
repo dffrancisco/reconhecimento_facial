@@ -13,7 +13,9 @@ const BASE = {
     REDIS_URL: "redis://127.0.0.1:1",
     ESTACAO_CHAVE: "k".repeat(32),
     VPS_URL: "http://127.0.0.1:9",
+    VISION_URL: "http://127.0.0.1:9",
     ARQUIVO_SEGREDO: "s",
+    OPERADOR_SEGREDO: "o".repeat(32),
 };
 
 let servidor: Server | undefined;

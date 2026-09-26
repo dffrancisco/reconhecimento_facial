@@ -56,6 +56,21 @@ services:
       - traefik.http.services.api.loadbalancer.server.port=3000
     restart: unless-stopped
 
+  worker:
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    command: ["node", "dist/worker.js"]
+    # O worker não escuta HTTP: o healthcheck da imagem (GET /test) nunca passaria.
+    healthcheck: { disable: true }
+    env_file: .env.estacao
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    volumes:
+      - originais:/data/originais
+      - publicar:/data/publicar
+      - marcas:/data/marcas
+    restart: unless-stopped
+
   vision:
     build:
       context: ./apps/vision-service
@@ -82,3 +97,5 @@ volumes:
   redis-estacao:
   originais:
   cache-tensorrt:
+  publicar:
+  marcas:

@@ -14,6 +14,10 @@
         "test:integracao": "npm run test:integracao --workspaces --if-present",
         "migrate": "npm run migrate -w db --",
         "migrate:dev": "PAPEL=estacao POSTGRES_DB=fotos_estacao npm run migrate -w db -- up && PAPEL=vps POSTGRES_DB=fotos_vps npm run migrate -w db -- up",
-        "test:vision": "docker build -q -f apps/vision-service/Dockerfile --target teste -t fotos-vision:teste apps/vision-service && docker run --rm fotos-vision:teste"
+        "test:vision": "docker build -q -f apps/vision-service/Dockerfile --target teste -t fotos-vision:teste apps/vision-service && docker run --rm fotos-vision:teste",
+        "benchmark-pipeline": "tsx scripts/benchmark-pipeline.ts"
+    },
+    "devDependencies": {
+        "tsx": "^4.23.13"
     }
 }

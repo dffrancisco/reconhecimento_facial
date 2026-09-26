@@ -1,3 +1,5 @@
+import { cpus } from "node:os";
+
 export type tPapel = "estacao" | "vps";
 
 export interface iConfig {
@@ -8,12 +10,20 @@ export interface iConfig {
     estacaoChave: string;
     vpsUrl: string;
     arquivoSegredo: string;
+    operadorSegredo: string;
+    raizMarcas: string;
+    raizFotos: string;
+    raizOriginais: string;
+    raizPublicar: string;
+    visionUrl: string;
+    workerConcorrencia: number;
+    sharpConcorrencia: number;
 }
 
 const OBRIGATORIAS: Record<"comum" | tPapel, string[]> = {
     comum: ["POSTGRES_HOST", "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB", "REDIS_URL", "ESTACAO_CHAVE"],
-    estacao: ["VPS_URL"],
-    vps: ["ARQUIVO_SEGREDO"],
+    estacao: ["VPS_URL", "VISION_URL"],
+    vps: ["ARQUIVO_SEGREDO", "OPERADOR_SEGREDO"],
 };
 
 const helper = {
@@ -38,6 +48,10 @@ export function carregarConfig(env: NodeJS.ProcessEnv): iConfig {
     const estacaoChave = env.ESTACAO_CHAVE as string;
     if (estacaoChave.length < 32) throw new Error("[Config] ESTACAO_CHAVE deve ter pelo menos 32 caracteres");
 
+    const operadorSegredo = env.OPERADOR_SEGREDO ?? "";
+    if (papel === "vps" && operadorSegredo.length < 32)
+        throw new Error("[Config] OPERADOR_SEGREDO deve ter pelo menos 32 caracteres");
+
     return {
         papel,
         porta: helper.numero(env.PORTA, 3000, "PORTA"),
@@ -55,6 +69,16 @@ export function carregarConfig(env: NodeJS.ProcessEnv): iConfig {
         estacaoChave,
         vpsUrl: env.VPS_URL ?? "",
         arquivoSegredo: env.ARQUIVO_SEGREDO ?? "",
+        operadorSegredo,
+        raizMarcas: env.RAIZ_MARCAS || "/data/marcas",
+        raizFotos: env.RAIZ_FOTOS || "/data/fotos",
+        raizOriginais: env.RAIZ_ORIGINAIS || "/data/originais",
+        raizPublicar: env.RAIZ_PUBLICAR || "/data/publicar",
+        visionUrl: env.VISION_URL ?? "",
+        workerConcorrencia: helper.numero(env.WORKER_CONCORRENCIA, 16, "WORKER_CONCORRENCIA"),
+        // Spec §7: a etapa `derivados` fica limitada a núcleos - 2, para sobrar CPU para o
+        // vision decodificar e para a API responder.
+        sharpConcorrencia: helper.numero(env.SHARP_CONCORRENCIA, Math.max(1, cpus().length - 2), "SHARP_CONCORRENCIA"),
     };
 }
 

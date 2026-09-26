@@ -1,0 +1,11 @@
+@vps = http://localhost:3002
+
+### Login
+POST {{vps}}/api/admin/login
+Content-Type: application/json
+
+{
+    "call": "login",
+    "login": "ana",
+    "senha": "troque-esta-senha"
+}

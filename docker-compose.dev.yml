@@ -2,6 +2,8 @@
 # Só a infraestrutura:  docker compose -f docker-compose.dev.yml up -d postgres redis
 # Tudo (sem GPU):       docker compose -f docker-compose.dev.yml up -d --build
 # Com o vision na GPU:  docker compose -f docker-compose.dev.yml --profile gpu up -d --build
+# Ingestão de teste:  docker compose -f docker-compose.dev.yml exec worker-estacao node dist/scripts/ingerir.js --evento <slug> --pasta /data/dados/<pasta>
+#                     (a imagem é de produção: só tem dist/, sem tsx — por isso não é `npm run ingerir`)
 name: fotos-dev
 
 services:
@@ -57,6 +59,7 @@ services:
       REDIS_PREFIXO: "fotos:estacao:"
       ESTACAO_CHAVE: dev-somente-local-dev-somente-local
       VPS_URL: http://api-vps:3000
+      VISION_URL: http://vision-gpu:8000
     ports:
       - "127.0.0.1:3001:3000"
     depends_on:
@@ -73,6 +76,7 @@ services:
       REDIS_PREFIXO: "fotos:vps:"
       ESTACAO_CHAVE: dev-somente-local-dev-somente-local
       ARQUIVO_SEGREDO: dev-somente-local
+      OPERADOR_SEGREDO: dev-somente-local-dev-somente-local
     ports:
       - "127.0.0.1:3002:3000"
     depends_on:
@@ -80,6 +84,30 @@ services:
       redis: { condition: service_healthy }
     volumes:
       - selfies:/data/selfies
+      - fotos-vps:/data/fotos
+      - marcas-vps:/data/marcas
+
+  worker-estacao:
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    command: ["node", "dist/worker.js"]
+    # O worker não escuta HTTP: o healthcheck da imagem (GET /test) nunca passaria.
+    healthcheck: { disable: true }
+    environment:
+      <<: *banco-dev
+      REDIS_URL: redis://redis:6379
+      REDIS_PREFIXO: "fotos:estacao:"
+      ESTACAO_CHAVE: dev-somente-local-dev-somente-local
+      VPS_URL: http://api-vps:3000
+      # Só resolve com --profile gpu (vision-gpu) no ar; sincronizar e sinal funcionam sem ele.
+      VISION_URL: http://vision-gpu:8000
+    volumes:
+      - ./dados:/data/dados:ro
+      - originais:/data/originais
+      - publicar:/data/publicar
+      - marcas-estacao:/data/marcas
+    depends_on:
+      migrate-estacao: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
 
   vision-gpu:
     profiles: ["gpu"]
@@ -90,8 +118,12 @@ services:
         ORT: onnxruntime-gpu[cuda,cudnn]==1.30.0
     environment:
       VISION_MODO: gpu
+      # O pipeline manda o vision abrir o original gravado pelo worker: sem o volume
+      # `originais` aqui, o /detect recusa a foto com "No such file or directory".
+      VISION_RAIZES: /data/originais:/data/dados
     volumes:
       - ./dados:/data/dados:ro
+      - originais:/data/originais:ro
     ports:
       - "127.0.0.1:8001:8000"
     deploy:
@@ -116,6 +148,11 @@ services:
 
 volumes:
   pg-dev:
+  originais:
+  publicar:
+  marcas-estacao:
+  fotos-vps:
+  marcas-vps:
   # Selfies só existem durante a busca (spec §10): tmpfs, nunca em disco.
   selfies:
     driver_opts:
