@@ -31,6 +31,8 @@ export const state = reactive({
     pausada: false,
     parada: null as string | null,
     semConexaoDesde: null as number | null,
+    // A fila só percebe a queda quando tem foto para mandar; parada, é a consulta periódica.
+    estacaoSemConexaoDesde: null as number | null,
     enviados: 0,
     pulados: 0,
     esperando: 0,
@@ -83,6 +85,12 @@ function bloquearSeFechado(falha: FalhaDeEnvio): FalhaDeEnvio {
     return falha;
 }
 
+// A queda mais antiga que a fila ou a consulta periódica perceberam.
+export function semConexaoDesde(): number | null {
+    const marcas = [state.semConexaoDesde, state.estacaoSemConexaoDesde].filter((m): m is number => m !== null);
+    return marcas.length ? Math.min(...marcas) : null;
+}
+
 function medirVelocidade(): void {
     const agora = Date.now();
     state.agora = agora;
@@ -92,7 +100,7 @@ function medirVelocidade(): void {
     }
     amostra = { t: agora, bytes: state.bytesEnviados };
     if (typeof document !== "undefined")
-        document.title = estadoConexao(state.semConexaoDesde, agora) === "alerta" ? "⚠ Sem conexão" : TITULO;
+        document.title = estadoConexao(semConexaoDesde(), agora) === "alerta" ? "⚠ Sem conexão" : TITULO;
 }
 
 export const actions = {
@@ -108,6 +116,7 @@ export const actions = {
             comErroItens: [],
             pendentesAnteriores: 0,
             bytesPorSegundo: 0,
+            estacaoSemConexaoDesde: null,
         });
         fila = null;
 
@@ -167,7 +176,9 @@ export const actions = {
         if (!token) return;
         try {
             state.estacao = await statusUpload(token);
+            state.estacaoSemConexaoDesde = null;
         } catch (erro) {
+            if (erro instanceof ErroDaApi && erro.semConexao) state.estacaoSemConexaoDesde ??= Date.now();
             if (erro instanceof ErroDaApi && (erro.codigo === "link_invalido" || erro.codigo === "evento_encerrado")) state.bloqueio = erro.message;
         }
     },

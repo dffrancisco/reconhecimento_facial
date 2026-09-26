@@ -140,6 +140,15 @@ describe("tela de envio", () => {
         expect(t.text()).toContain("Sem conexão com a estação — tentando de novo");
     });
 
+    test("com a fila parada, a estação fora do ar também muda o aviso de conexão", async () => {
+        // Sem foto na fila, só a consulta periódica percebe a queda: o aviso não pode seguir "Conectado".
+        vi.mocked(statusUpload).mockRejectedValue(new ErroDaApi("Sem conexão com a estação.", undefined, undefined, true));
+        const t = await abrir();
+
+        expect(t.text()).toContain("Sem conexão com a estação — tentando de novo");
+        expect(t.text()).not.toContain("Conectado à estação");
+    });
+
     test("sair com fotos na fila faz o navegador perguntar antes", async () => {
         vi.mocked(enviarPedaco).mockImplementation(() => new Promise(() => {}));
         await abrir();

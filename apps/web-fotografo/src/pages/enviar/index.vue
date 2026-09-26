@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref } from "vue";
 import { estadoConexao, tempoRestante } from "../../ts/tempo";
-import { actions, state } from "./enviar";
+import { actions, semConexaoDesde, state } from "./enviar";
 
 const entradaArquivos = ref<HTMLInputElement | null>(null);
 const arrastando = ref(false);
@@ -21,7 +21,7 @@ onUnmounted(() => {
     actions.encerrar();
 });
 
-const conexao = computed(() => estadoConexao(state.semConexaoDesde, state.agora));
+const conexao = computed(() => estadoConexao(semConexaoDesde(), state.agora));
 const totalErros = computed(() => state.comErro + state.recusados.length + state.estacao.com_erro);
 const total = computed(() => state.enviados + state.pulados + state.esperando);
 const feitas = computed(() => state.enviados + state.pulados);
