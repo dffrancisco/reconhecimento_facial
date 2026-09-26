@@ -10,7 +10,8 @@
         "typecheck": "tsc -p tsconfig.json",
         "test": "tsx --test $(find src -name '*.test.ts')",
         "test:integracao": "tsx --test --test-concurrency=1 $(find integracao -name '*.test.ts')",
-        "criar-operador": "tsx src/scripts/criarOperador.ts"
+        "criar-operador": "tsx src/scripts/criarOperador.ts",
+        "ingerir": "tsx src/scripts/ingerir.ts"
     },
     "dependencies": {
         "bullmq": "^5.34.0",
