@@ -18,6 +18,7 @@ export interface iConfig {
     visionUrl: string;
     workerConcorrencia: number;
     sharpConcorrencia: number;
+    arquivoLinkValidadeS: number;
 }
 
 const OBRIGATORIAS: Record<"comum" | tPapel, string[]> = {
@@ -79,6 +80,7 @@ export function carregarConfig(env: NodeJS.ProcessEnv): iConfig {
         // Spec §7: a etapa `derivados` fica limitada a núcleos - 2, para sobrar CPU para o
         // vision decodificar e para a API responder.
         sharpConcorrencia: helper.numero(env.SHARP_CONCORRENCIA, Math.max(1, cpus().length - 2), "SHARP_CONCORRENCIA"),
+        arquivoLinkValidadeS: helper.numero(env.ARQUIVO_LINK_VALIDADE_S, 3600, "ARQUIVO_LINK_VALIDADE_S"),
     };
 }
 
