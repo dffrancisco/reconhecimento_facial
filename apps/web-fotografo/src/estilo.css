@@ -1,0 +1,123 @@
+@import "tailwindcss";
+/* Só o tema claro: a spec (§2) fixa que o prefers-color-scheme não muda nada. */
+@plugin "daisyui" {
+    themes: light --default;
+}
+
+/* Identidade "Claro e limpo" (spec §2). Em variáveis para os hex não se repetirem por tela. */
+:root {
+    --fundo: #f6f6f8;
+    --superficie: #fff;
+    --borda: #e6e6ea;
+    --texto: #1d1d22;
+    --apagado: #7a7a86;
+    --trilho: #e9e9ee;
+    --barra: #f7414f;
+    --sucesso: #16a34a;
+    --sucesso-fundo: #e8f7ee;
+    --erro: #dc2626;
+    --aviso: #9a3412;
+    --aviso-fundo: #fff7ed;
+    --aviso-borda: #fed7aa;
+}
+
+/* Em @layer components para que as utilidades do Tailwind (p-4, mt-2…) valham por cima. */
+@layer components {
+    .pagina {
+        background: var(--fundo);
+        color: var(--texto);
+        min-height: 100dvh;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        font-size: 0.8125rem;
+    }
+
+    .superficie {
+        background: var(--superficie);
+        border: 1px solid var(--borda);
+        border-radius: 12px;
+    }
+
+    .apagado {
+        color: var(--apagado);
+    }
+
+    .selo {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border-radius: 6px;
+        background: linear-gradient(168deg, #ff6b35 0%, #f7414f 52%, #c81d5a 100%);
+        vertical-align: middle;
+    }
+
+    .botao {
+        border-radius: 999px;
+        padding: 0.45rem 1rem;
+        font-weight: 800;
+        font-size: 0.75rem;
+        background: var(--texto);
+        color: #fff;
+    }
+
+    .botao-secundario {
+        border-radius: 999px;
+        padding: 0.4rem 0.85rem;
+        font-weight: 700;
+        font-size: 0.75rem;
+        background: #fff;
+        border: 1px solid #d4d4dc;
+        color: var(--texto);
+    }
+
+    .botao-perigo {
+        border-radius: 999px;
+        padding: 0.45rem 1rem;
+        font-weight: 800;
+        font-size: 0.75rem;
+        background: #fff;
+        color: #b91c1c;
+        border: 1px solid #fecaca;
+    }
+
+    .botao:disabled,
+    .botao-secundario:disabled,
+    .botao-perigo:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .rotulo-secao {
+        font-size: 0.625rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        font-weight: 700;
+        color: var(--apagado);
+    }
+
+    .numero {
+        display: block;
+        font-size: 1.125rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+    }
+
+    .trilho {
+        height: 8px;
+        background: var(--trilho);
+        border-radius: 999px;
+        overflow: hidden;
+    }
+
+    .trilho > i {
+        display: block;
+        height: 100%;
+        background: var(--barra);
+    }
+
+    .aviso {
+        background: var(--aviso-fundo);
+        border: 1px solid var(--aviso-borda);
+        color: var(--aviso);
+        border-radius: 10px;
+    }
+}
