@@ -109,6 +109,20 @@ services:
       migrate-estacao: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
 
+  arquivos:
+    build: { context: ./infra/nginx }
+    environment:
+      ARQUIVO_SEGREDO: dev-somente-local
+    volumes:
+      - fotos-vps:/data/fotos:ro
+      - zips-vps:/data/zips:ro
+    ports:
+      - "127.0.0.1:8080:80"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/health"]
+      interval: 10s
+      retries: 5
+
   vision-gpu:
     profiles: ["gpu"]
     build:
@@ -153,6 +167,7 @@ volumes:
   marcas-estacao:
   fotos-vps:
   marcas-vps:
+  zips-vps:
   # Selfies só existem durante a busca (spec §10): tmpfs, nunca em disco.
   selfies:
     driver_opts:

@@ -1,0 +1,39 @@
+server {
+    listen 80 default_server;
+    server_name _;
+    # Fotos e ZIPs são pesados e a resposta é um arquivo inteiro: sendfile evita copiar
+    # para o espaço do usuário.
+    sendfile on;
+    tcp_nopush on;
+
+    # Os ZIPs ficam em outro volume: precisa vir antes do /arquivos/ genérico.
+    location /arquivos/zips/ {
+        secure_link $arg_md5,$arg_expires;
+        secure_link_md5 "$secure_link_expires$uri ${ARQUIVO_SEGREDO}";
+
+        if ($secure_link = "") { return 403; }
+        if ($secure_link = "0") { return 410; }
+
+        add_header Content-Disposition "attachment" always;
+        alias /data/zips/;
+    }
+
+    location /arquivos/ {
+        secure_link $arg_md5,$arg_expires;
+        secure_link_md5 "$secure_link_expires$uri ${ARQUIVO_SEGREDO}";
+
+        # Vazio = assinatura não confere. "0" = assinatura certa, prazo vencido.
+        if ($secure_link = "") { return 403; }
+        if ($secure_link = "0") { return 410; }
+
+        # Só com ?dl=1 o navegador baixa em vez de exibir.
+        if ($arg_dl = "1") { add_header Content-Disposition "attachment" always; }
+
+        alias /data/fotos/;
+    }
+
+    location = /health {
+        access_log off;
+        return 200 "ok\n";
+    }
+}

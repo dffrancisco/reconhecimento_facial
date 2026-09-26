@@ -69,6 +69,21 @@ services:
       - fotos:/data/fotos
       - marcas:/data/marcas
 
+  arquivos:
+    build: { context: ./infra/nginx }
+    environment:
+      ARQUIVO_SEGREDO: ${ARQUIVO_SEGREDO}
+    volumes:
+      - fotos:/data/fotos:ro
+      - zips:/data/zips:ro
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.arquivos.rule=Host(`${DOMINIO_PARTICIPANTE}`) && PathPrefix(`/arquivos`)
+      - traefik.http.routers.arquivos.entrypoints=websecure
+      - traefik.http.routers.arquivos.tls=true
+      - traefik.http.services.arquivos.loadbalancer.server.port=80
+    restart: unless-stopped
+
   vision:
     build:
       context: ./apps/vision-service
@@ -92,3 +107,4 @@ volumes:
       o: "size=256m,uid=1000"
   fotos:
   marcas:
+  zips:
