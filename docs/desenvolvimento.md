@@ -25,6 +25,8 @@ npm run test:integracao  # precisa do Postgres de dev de pé
 npm run typecheck
 ```
 
+Os testes de integração inspecionam as filas do Redis, então o `worker-estacao` não pode estar rodando junto — ele consome os jobs que os testes acabaram de enfileirar. Se o compose completo estiver no ar: `docker compose -f docker-compose.dev.yml stop worker-estacao` antes de rodar.
+
 ## Migrations
 
 ```bash

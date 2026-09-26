@@ -10,21 +10,29 @@ import { processarSincronizar } from "../src/jobs/sincronizar";
 let servidorVps: Server;
 let conexao: ConexaoPostgres;
 
+// Ids e chaves altos e únicos por execução: o banco da estação é compartilhado e pode já
+// conter os dados que a sincronização real trouxe da VPS (logins e slugs são únicos lá).
+const marca = Date.now() % 1_000_000;
+const ID_OPERADOR = 900_000 + marca;
+const ID_EVENTO = 900_000 + marca;
+const ID_FOTOGRAFO = 900_000 + marca;
+const ID_VINCULO = 900_000 + marca;
+
 before(async () => {
     const app = express();
     app.use(express.json());
     app.post("/api/estacao/sincronizacao", (_req, res) => {
         res.json({
-            operadores: [{ id_operador: 1, nome: "Ana", login: "ana", senha_hash: "hash", deletado: "N" }],
+            operadores: [{ id_operador: ID_OPERADOR, nome: "Ana", login: `ana-${marca}`, senha_hash: "hash", deletado: "N" }],
             eventos: [
                 {
-                    id_evento: 1,
+                    id_evento: ID_EVENTO,
                     nome: "Evento Sync",
-                    slug: "evento-sync",
+                    slug: `evento-sync-${marca}`,
                     tipo: "esportivo",
                     privado: "N",
                     chave_acesso: null,
-                    chave_anfitriao: "chave-anfitriao",
+                    chave_anfitriao: `chave-anfitriao-${marca}`,
                     data_inicio: null,
                     data_fim: "2026-12-31",
                     ativo: "S",
@@ -32,8 +40,8 @@ before(async () => {
                     marca_dagua_caminho: null,
                 },
             ],
-            fotografos: [{ id_fotografo: 1, nome: "Fotógrafo Sync", telefone: null, deletado: "N" }],
-            vinculos: [{ id_evento_fotografo: 1, id_evento: 1, id_fotografo: 1, token_upload: "token", ativo: "S" }],
+            fotografos: [{ id_fotografo: ID_FOTOGRAFO, nome: "Fotógrafo Sync", telefone: null, deletado: "N" }],
+            vinculos: [{ id_evento_fotografo: ID_VINCULO, id_evento: ID_EVENTO, id_fotografo: ID_FOTOGRAFO, token_upload: `token-${marca}`, ativo: "S" }],
         });
     });
     servidorVps = app.listen(0);
@@ -60,12 +68,12 @@ test("grava operadores, eventos, fotógrafos e vínculos com os mesmos IDs da VP
 
     const verificacao = new ConexaoPostgres();
     await verificacao.open();
-    const [operador] = await verificacao.queryParam("SELECT * FROM operador WHERE id_operador = 1");
-    const [evento] = await verificacao.queryParam("SELECT * FROM evento WHERE id_evento = 1");
-    const [vinculo] = await verificacao.queryParam("SELECT * FROM evento_fotografo WHERE id_evento_fotografo = 1");
-    assert.strictEqual(operador.login, "ana");
-    assert.strictEqual(evento.slug, "evento-sync");
-    assert.strictEqual(vinculo.token_upload, "token");
+    const [operador] = await verificacao.queryParam("SELECT * FROM operador WHERE id_operador = ?", [ID_OPERADOR]);
+    const [evento] = await verificacao.queryParam("SELECT * FROM evento WHERE id_evento = ?", [ID_EVENTO]);
+    const [vinculo] = await verificacao.queryParam("SELECT * FROM evento_fotografo WHERE id_evento_fotografo = ?", [ID_VINCULO]);
+    assert.strictEqual(operador.login, `ana-${marca}`);
+    assert.strictEqual(evento.slug, `evento-sync-${marca}`);
+    assert.strictEqual(vinculo.token_upload, `token-${marca}`);
     await verificacao.close();
 });
 
