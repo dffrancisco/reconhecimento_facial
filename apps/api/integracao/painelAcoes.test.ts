@@ -15,6 +15,7 @@ import Painel from "../src/_PAINEL/painel/route.painel";
 import Upload from "../src/_FOTOGRAFO/upload/route.upload";
 import { limparUploadsAbandonados } from "../src/jobs/limparUploads";
 import { DadosProcessarFoto, NOME_FILA } from "../src/jobs/processarFoto";
+import { NOME_FILA as FILA_PUBLICAR } from "../src/jobs/publicarFoto";
 import { envTeste } from "./ambiente";
 
 let servidor: Server;
@@ -121,22 +122,74 @@ describe("reprocessar", () => {
         assert.strictEqual(foto.erro, "falhou");
     });
 
-    test("sem id_foto, reprocessa só as fotos com erro do evento em andamento", async () => {
+    test("com id_evento, reprocessa só as fotos com erro daquele evento", async () => {
         const original = path.join(pasta, "c.jpg");
         await fs.writeFile(original, "x");
         await inserirFoto(idEvento, "reproc-c", "rostos", "erro", original);
         const idDoAntigo = await inserirFoto(idEventoAntigo, "reproc-d", "rostos", "erro", original);
 
-        await chamar("painel", { call: "reprocessar" });
+        await chamar("painel", { call: "reprocessar", id_evento: idEvento });
 
         const [antigo] = await conexao.queryParam<{ erro: string | null }>("SELECT erro FROM foto WHERE id_foto = ?", [idDoAntigo]);
-        assert.strictEqual(antigo.erro, "erro", "o evento que não está em andamento fica de fora");
+        assert.strictEqual(antigo.erro, "erro", "o outro evento fica de fora");
         const job = await criarFila<DadosProcessarFoto>(NOME_FILA).getJob(`${idEvento}_reproc-c`);
         assert.ok(job);
     });
 });
 
+describe("reprocessar erro de publicação", () => {
+    test("tira o job de publicação que falhou, senão a foto nunca publica e trava o encerrar", async () => {
+        const original = path.join(pasta, "pub.jpg");
+        await fs.writeFile(original, "x");
+        const [linha] = await conexao.queryParam<{ id_foto: number }>(
+            `INSERT INTO foto (id_evento, id_evento_fotografo, hash_arquivo, nome_arquivo, etapa, erro, erro_etapa, caminho_original)
+             VALUES (?, ?, 'reproc-pub', 'pub.jpg', 'derivados', 'VPS respondeu 502', 'publicacao', ?) RETURNING id_foto`,
+            [idEvento, idVinculo, original]
+        );
+        jobs.push(`${idEvento}_reproc-pub`);
+        const publicar = criarFila(FILA_PUBLICAR);
+        await publicar.add(FILA_PUBLICAR, { id_evento: idEvento, hash_arquivo: "reproc-pub" }, { jobId: `${idEvento}_reproc-pub` });
+
+        await chamar("painel", { call: "reprocessar", id_foto: linha.id_foto });
+
+        assert.strictEqual(await publicar.getJob(`${idEvento}_reproc-pub`), undefined, "o job velho sai, e o processamento enfileira um novo");
+    });
+
+    test("versão web que sumiu volta a ser gerada", async () => {
+        const original = path.join(pasta, "sumiu.jpg");
+        await fs.writeFile(original, "x");
+        const [linha] = await conexao.queryParam<{ id_foto: number }>(
+            `INSERT INTO foto (id_evento, id_evento_fotografo, hash_arquivo, nome_arquivo, etapa, erro, erro_etapa, caminho_original)
+             VALUES (?, ?, 'reproc-sumiu', 'sumiu.jpg', 'derivados', '[PublicarFoto] derivado ausente: /data/publicar/x_web.jpg', 'publicacao', ?)
+             RETURNING id_foto`,
+            [idEvento, idVinculo, original]
+        );
+        jobs.push(`${idEvento}_reproc-sumiu`);
+
+        await chamar("painel", { call: "reprocessar", id_foto: linha.id_foto });
+
+        const [foto] = await conexao.queryParam<{ etapa: string }>("SELECT etapa FROM foto WHERE id_foto = ?", [linha.id_foto]);
+        assert.strictEqual(foto.etapa, "rostos");
+    });
+});
+
 describe("encerrarEvento", () => {
+    test("foto que chegou mas ainda não começou a processar também segura o encerrar", async () => {
+        // A linha em `foto` só nasce quando o worker pega o job: com fila grande (ou worker
+        // parado), o upload completo é tudo o que existe da foto.
+        await conexao.executeParamCount("UPDATE foto SET etapa = 'publicada', erro = NULL WHERE id_evento = ? AND erro IS NULL", [idEvento]);
+        const [upload] = await conexao.queryParam<{ id_upload: number }>(
+            `INSERT INTO upload (id_evento_fotografo, nome_arquivo, tamanho, hash_arquivo, bytes_recebidos, status)
+             VALUES (?, 'na-fila.jpg', 10, 'upload-sem-foto', 10, 'completo') RETURNING id_upload`,
+            [idVinculo]
+        );
+
+        const r = await chamar("painel", { call: "encerrarEvento", id_evento: idEvento });
+
+        assert.strictEqual(r.corpo.codigo, "em_processamento");
+        await conexao.executeParamCount("UPDATE upload SET status = 'cancelado' WHERE id_upload = ?", [upload.id_upload]);
+    });
+
     test("com foto em processamento, recusa e diz por quê", async () => {
         const idFoto = await inserirFoto(idEvento, "enc-a", "rostos", null, null);
 

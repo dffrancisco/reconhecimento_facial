@@ -116,7 +116,10 @@ export function criarRotaPedaco(deps: Dependencias = {}): RequestHandler {
                 throw new ErroTratado("Este link não aceita mais fotos. Fale com o operador da estação.", "link_invalido");
             if (upload.status !== "recebendo")
                 throw new ErroTratado("Este envio foi encerrado. A foto vai recomeçar.", "upload_encerrado");
-            if (emCurso.has(idUpload)) throw new Resposta(409, { bytes_recebidos: await tamanhoEmDisco(idUpload) });
+            // Sem `bytes_recebidos`: o tamanho em disco ainda está mudando. O pedaço em curso
+            // costuma ser o de uma conexão que caiu e segura a trava até a estação desistir dele.
+            if (emCurso.has(idUpload))
+                throw new Resposta(409, { msg: "Outro pedaço desta foto ainda está chegando.", codigo: "em_curso" });
             emCurso.add(idUpload);
             travado = true;
 

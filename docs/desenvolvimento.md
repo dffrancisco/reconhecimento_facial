@@ -155,7 +155,7 @@ npm run test -w apps/web-fotografo       # Vitest + Vue Test Utils, sem API no a
 
 O Vite encaminha `/api` para a API da estação de dev (`127.0.0.1:3001`).
 
-- **Painel:** `http://localhost:5174/#/estacao`, com o mesmo login do admin (`ana` / `senha-dev-123` depois do `criar-operador`). Ele mostra o evento em andamento (o mais recente não encerrado na estação) e, para cada fotógrafo vinculado, o link e o QR de upload.
+- **Painel:** `http://localhost:5174/#/estacao`, com o mesmo login do admin (`ana` / `senha-dev-123` depois do `criar-operador`). Ele mostra o evento em andamento (o que está acontecendo hoje pelas datas; com mais de um aberto, o operador escolhe no cabeçalho) e, para cada fotógrafo vinculado, o link e o QR de upload.
 - **Envio:** abra o link do fotógrafo (`/#/?t=<token_upload>`) e solte uma pasta de JPEGs.
 
 O evento, o fotógrafo e o vínculo nascem no admin do VPS (`apps/api/src/_ADMIN/evento/evento.http` e `fotografo/fotografo.http`) e chegam à estação pela sincronização, a cada 60 s.

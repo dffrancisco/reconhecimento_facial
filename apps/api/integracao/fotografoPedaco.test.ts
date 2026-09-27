@@ -27,6 +27,8 @@ let tokenOutro: string;
 let idVinculoOutro: number;
 const sufixo = Date.now();
 const jobsCriados: string[] = [];
+let liberar: () => void = () => {};
+let segurar: Promise<void> = Promise.resolve();
 
 async function proximoId(tabela: string, coluna: string): Promise<number> {
     const [linha] = await conexao.queryParam<{ id: number }>(`SELECT COALESCE(MAX(${coluna}), 0) + 1 AS id FROM ${tabela}`);
@@ -81,6 +83,24 @@ before(async () => {
                 },
                 fechar: async () => {},
             }),
+        })
+    );
+    // Escrita que só anda quando o teste libera: segura a trava do envio como uma conexão
+    // que ficou pendurada depois de uma queda de Wi-Fi.
+    app.put(
+        "/lento/:id_upload",
+        criarRotaPedaco({
+            limitePedaco: 8 * KB,
+            abrirEscrita: async (caminho) => {
+                const arquivo = await fs.open(caminho, "a");
+                return {
+                    escrever: async (dados) => {
+                        await segurar;
+                        await arquivo.write(dados);
+                    },
+                    fechar: () => arquivo.close(),
+                };
+            },
         })
     );
     servidor = app.listen(0);
@@ -238,6 +258,25 @@ describe("PUT dos pedaços", () => {
         assert.strictEqual(await existe(parcial(segundo.id_upload)), false, "o parcial de quem chegou depois é apagado");
         const job = await criarFila<DadosProcessarFoto>(NOME_FILA).getJob(`${idEvento}_${hash}`);
         assert.strictEqual(job?.data.origem, parcial(primeiro.id_upload));
+    });
+
+    test("outro pedaço do mesmo envio ainda em curso: 409 com código próprio, para o navegador esperar", async () => {
+        const foto = jpeg(12 * KB);
+        const { id_upload } = await iniciar(foto);
+        segurar = new Promise((r) => (liberar = r));
+        const primeiro = fetch(`${base}/lento/${id_upload}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/octet-stream", "X-Token-Upload": token, "Upload-Offset": "0" },
+            body: new Uint8Array(foto.subarray(0, 8 * KB)),
+        });
+        await new Promise((r) => setTimeout(r, 100));
+
+        const r = await enviar(id_upload, 0, foto.subarray(0, 8 * KB), { rota: "lento" });
+
+        assert.strictEqual(r.status, 409);
+        assert.strictEqual(r.corpo.codigo, "em_curso");
+        liberar();
+        assert.strictEqual((await primeiro).status, 200);
     });
 
     test("estação sem espaço em disco para a fila inteira com um código próprio", async () => {

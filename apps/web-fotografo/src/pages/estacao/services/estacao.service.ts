@@ -5,12 +5,13 @@ export function login(usuario: string, senha: string): Promise<{ token: string; 
     return chamar("painel", "login", { call: "login", login: usuario, senha });
 }
 
-export function getPainel(): Promise<RespostaPainel> {
-    return chamar("painel", "painel", { call: "getPainel" });
+// Sem `idEvento`, a estação mostra o evento acontecendo hoje.
+export function getPainel(idEvento: number | null): Promise<RespostaPainel> {
+    return chamar("painel", "painel", idEvento === null ? { call: "getPainel" } : { call: "getPainel", id_evento: idEvento });
 }
 
-export function reprocessar(idFoto?: number): Promise<{ reenfileiradas: number; sem_arquivo: number }> {
-    return chamar("painel", "painel", idFoto === undefined ? { call: "reprocessar" } : { call: "reprocessar", id_foto: idFoto });
+export function reprocessar(alvo: { id_foto: number } | { id_evento: number }): Promise<{ reenfileiradas: number; sem_arquivo: number }> {
+    return chamar("painel", "painel", { call: "reprocessar", ...alvo });
 }
 
 export function encerrarEvento(idEvento: number): Promise<{ encerrado: true }> {

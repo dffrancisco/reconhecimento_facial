@@ -3,6 +3,7 @@ import { computed, nextTick, onUnmounted, ref } from "vue";
 import QrCode from "../../componentes/QrCode.vue";
 import { enderecoDosLinks, linkDeUpload } from "../../ts/links";
 import { actions, state } from "./estacao";
+import type { EventoAberto } from "./interfaces";
 
 const usuario = ref("");
 const senha = ref("");
@@ -18,7 +19,10 @@ const linkTunel = (token: string) => (p.value?.enderecos.tunel ? linkDeUpload(p.
 const segundos = (ms: number) => (ms > 0 ? `${Math.round(ms / 1000)} s` : "—");
 const porcento = (v: number) => `${(v * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
 const gb = (mb: number) => (mb / 1024).toLocaleString("pt-BR", { maximumFractionDigits: 1 });
-const hora = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+// Montada do texto, sem `Date`: "2026-09-26" viraria o dia 25 no fuso do Brasil.
+const data = (ymd: string) => ymd.split("-").reverse().join("/");
+const periodo = (e: EventoAberto) => (e.data_inicio && e.data_inicio !== e.data_fim ? `${data(e.data_inicio)} a ${data(e.data_fim)}` : data(e.data_fim));
+const escolher = (ev: Event) => actions.escolherEvento(Number((ev.target as HTMLSelectElement).value));
 
 // Mais de 3 min sem sincronizar já é problema: eventos e fotógrafos novos não chegam.
 const vps = computed(() => {
@@ -42,9 +46,21 @@ const maiorEtapa = computed(() => Math.max(1, ...etapas.map((e) => p.value?.fila
 <template>
     <main class="pagina">
         <header class="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--borda)] bg-white px-4 py-2.5">
-            <div>
-                <span class="selo mr-2"></span><b>Estação</b>
-                <span v-if="p?.evento" class="apagado"> · {{ p.evento.nome }} · desde {{ hora(p.evento.desde) }}</span>
+            <div class="flex flex-wrap items-center gap-2">
+                <span><span class="selo mr-2"></span><b>Estação</b></span>
+                <template v-if="state.sessao && p?.evento">
+                    <select
+                        v-if="p.eventos_abertos.length > 1"
+                        data-acao="escolher-evento"
+                        aria-label="Evento acompanhado no painel"
+                        class="rounded-lg border border-[var(--borda)] bg-white px-2 py-1"
+                        :value="p.evento.id_evento"
+                        @change="escolher"
+                    >
+                        <option v-for="e in p.eventos_abertos" :key="e.id_evento" :value="e.id_evento">{{ e.nome }} · {{ periodo(e) }}</option>
+                    </select>
+                    <span v-else class="apagado">· {{ p.evento.nome }} · {{ periodo(p.evento) }}</span>
+                </template>
             </div>
             <div v-if="state.sessao" class="flex items-center gap-3">
                 <span
@@ -77,9 +93,20 @@ const maiorEtapa = computed(() => Math.max(1, ...etapas.map((e) => p.value?.fila
             </form>
 
             <div v-else-if="!p?.evento" class="superficie mt-8 p-6 text-center">
-                <p class="text-base font-extrabold">
-                    Nenhum evento em andamento nesta estação. Crie ou reative o evento no admin e aguarde a sincronização.
-                </p>
+                <p class="text-base font-extrabold">Nenhum evento em andamento nesta estação.</p>
+                <template v-if="p && p.eventos_abertos.length > 0">
+                    <p class="apagado mt-2">Os eventos abertos são de outras datas. Para acompanhar um deles mesmo assim, escolha:</p>
+                    <select
+                        data-acao="escolher-evento"
+                        aria-label="Evento acompanhado no painel"
+                        class="mt-3 rounded-lg border border-[var(--borda)] bg-white px-3 py-2"
+                        @change="escolher"
+                    >
+                        <option value="" disabled selected>Escolha o evento…</option>
+                        <option v-for="e in p.eventos_abertos" :key="e.id_evento" :value="e.id_evento">{{ e.nome }} · {{ periodo(e) }}</option>
+                    </select>
+                </template>
+                <p v-else class="apagado mt-2">Crie ou reative o evento no admin e aguarde a sincronização.</p>
             </div>
 
             <template v-else>
@@ -149,7 +176,7 @@ const maiorEtapa = computed(() => Math.max(1, ...etapas.map((e) => p.value?.fila
                 <template v-if="p.erros.length > 0">
                     <div class="mt-4 mb-1 flex items-center justify-between">
                         <p class="rotulo-secao">Erros de processamento</p>
-                        <button type="button" class="botao-secundario" @click="actions.reprocessar()">Reprocessar todos</button>
+                        <button type="button" class="botao-secundario" data-acao="reprocessar-todos" @click="actions.reprocessar()">Reprocessar todos</button>
                     </div>
                     <div class="superficie">
                         <div v-for="e in p.erros" :key="e.id_foto" class="grid grid-cols-[1.2fr_90px_2fr_auto] items-center gap-2 border-t border-[#ececf0] px-3 py-2 first:border-t-0">

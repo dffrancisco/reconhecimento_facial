@@ -1,5 +1,14 @@
+// Datas em YYYY-MM-DD, no fuso dos eventos.
+export interface EventoAberto {
+    id_evento: number;
+    nome: string;
+    data_inicio: string | null;
+    data_fim: string;
+}
+
 export interface RespostaPainel {
-    evento: null | { id_evento: number; nome: string; desde: string };
+    evento: null | EventoAberto;
+    eventos_abertos: EventoAberto[];
     metricas: {
         fotos_min: number;
         latencia_p50_ms: number;

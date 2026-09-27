@@ -16,14 +16,17 @@ export default class Painel implements iRota {
         this.ctrl = new PainelCtrl(this.conexao);
     }
 
-    async getPainel() {
-        return this.ctrl.getPainel();
+    async getPainel(req: Request) {
+        const idEvento = req.body.id_evento === undefined || req.body.id_evento === null ? null : Number(req.body.id_evento);
+        return this.ctrl.getPainel(Number.isInteger(idEvento) ? idEvento : null);
     }
 
     async reprocessar(req: Request) {
-        const idFoto = req.body.id_foto === undefined || req.body.id_foto === null ? null : Number(req.body.id_foto);
-        if (idFoto !== null && !Number.isInteger(idFoto)) return { msg: "id_foto inválido", error: true };
-        return this.ctrl.reprocessar(idFoto);
+        const { id_foto, id_evento } = req.body;
+        if (Number.isInteger(Number(id_foto)) && id_foto !== undefined && id_foto !== null) return this.ctrl.reprocessar({ idFoto: Number(id_foto) });
+        if (Number.isInteger(Number(id_evento)) && id_evento !== undefined && id_evento !== null)
+            return this.ctrl.reprocessar({ idEvento: Number(id_evento) });
+        return { msg: "Informe id_foto ou id_evento", error: true };
     }
 
     async encerrarEvento(req: Request) {

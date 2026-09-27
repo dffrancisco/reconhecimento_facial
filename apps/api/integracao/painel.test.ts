@@ -22,6 +22,7 @@ let conexao: ConexaoPostgres;
 let pasta: string;
 let idEvento: number;
 let idVinculoAna: number;
+let idEventoFuturo: number;
 const sufixo = Date.now();
 const login = `operador-painel-${sufixo}`;
 const ENV = () => ({ ...envTeste("estacao"), RAIZ_UPLOADS: path.join(pasta, "_uploads"), ENDERECO_LAN: "http://192.168.0.10" });
@@ -60,12 +61,20 @@ before(async () => {
         await gerarHashSenha("senha-certa-123"),
     ]);
 
-    // O mais recente não encerrado é o "em andamento": criado agora, ele vence os antigos.
+    // "Em andamento" é o evento acontecendo hoje. O próximo evento, cadastrado depois e com
+    // data futura, chega pela sincronização e não pode tomar o lugar dele.
     idEvento = await proximoId("evento", "id_evento");
     await conexao.executeParamCount(
-        `INSERT INTO evento (id_evento, nome, slug, tipo, privado, chave_anfitriao, data_fim, config, criado_em)
-         VALUES (?, 'Corrida do Painel', ?, 'esportivo', 'N', ?, '2026-12-31', '{}', now() + interval '1 day')`,
+        `INSERT INTO evento (id_evento, nome, slug, tipo, privado, chave_anfitriao, data_inicio, data_fim, config)
+         VALUES (?, 'Corrida do Painel', ?, 'esportivo', 'N', ?, (now() AT TIME ZONE 'America/Sao_Paulo')::date,
+                 (now() AT TIME ZONE 'America/Sao_Paulo')::date, '{}')`,
         [idEvento, `painel-${sufixo}`, `anf-painel-${sufixo}`]
+    );
+    idEventoFuturo = await proximoId("evento", "id_evento");
+    await conexao.executeParamCount(
+        `INSERT INTO evento (id_evento, nome, slug, tipo, privado, chave_anfitriao, data_inicio, data_fim, config, criado_em)
+         VALUES (?, 'Próxima Corrida', ?, 'esportivo', 'N', ?, now()::date + 30, now()::date + 30, '{}', now() + interval '1 day')`,
+        [idEventoFuturo, `painel-futuro-${sufixo}`, `anf-painel-futuro-${sufixo}`]
     );
     idVinculoAna = await criarVinculo("Ana");
     await criarVinculo("Bruno");
@@ -83,6 +92,11 @@ before(async () => {
     await inserir("o1", "original", null, original);
     await inserir("e1", "rostos", "[ProcessarFoto] vision recusou a imagem: decode", original);
     await inserir("e2", "registrada", "falhou antes do original", null);
+    // Upload completo cujo job ainda não criou a foto: também está "recebida".
+    await conexao.executeParamCount(
+        "INSERT INTO upload (id_evento_fotografo, nome_arquivo, tamanho, hash_arquivo, bytes_recebidos, status) VALUES (?, 'fila.jpg', 10, 'u1', 10, 'completo')",
+        [idVinculoAna]
+    );
 
     const app = express();
     app.use(express.json());
@@ -152,9 +166,9 @@ describe("getPainel", () => {
         // Cada contador é a etapa que a foto espera: "registrada" espera a cópia do original etc.
         assert.deepStrictEqual(
             { recebidas: corpo.fila.recebidas, rostos: corpo.fila.rostos, derivados: corpo.fila.derivados },
-            { recebidas: 1, rostos: 1, derivados: 0 }
+            { recebidas: 2, rostos: 1, derivados: 0 }
         );
-        assert.strictEqual(corpo.em_processamento, 2, "fotos com erro não contam como em processamento");
+        assert.strictEqual(corpo.em_processamento, 3, "fotos com erro não contam; upload ainda sem foto conta");
         assert.deepStrictEqual(
             corpo.fotografos.map((f) => [f.nome, f.prontas, f.com_erro, f.token_upload]),
             [
@@ -181,6 +195,16 @@ describe("getPainel", () => {
         }
     });
 
+    test("o operador pode escolher outro evento aberto, e a lista traz os abertos", async () => {
+        const token = await entrar();
+
+        const r = await chamar("painel", { call: "getPainel", id_evento: idEventoFuturo }, token);
+
+        assert.strictEqual((r.corpo.evento as { id_evento: number }).id_evento, idEventoFuturo);
+        const abertos = (r.corpo.eventos_abertos as { id_evento: number }[]).map((e) => e.id_evento);
+        assert.ok(abertos.includes(idEvento) && abertos.includes(idEventoFuturo));
+    });
+
     test("evento encerrado deixa de ser o evento em andamento", async () => {
         const token = await entrar();
         await conexao.executeParamCount("UPDATE evento SET encerrado_em = now() WHERE id_evento = ?", [idEvento]);
@@ -205,7 +229,7 @@ describe("limite de tentativas de login", () => {
 });
 
 after(async () => {
-    await conexao?.executeParamCount("UPDATE evento SET encerrado_em = now() WHERE id_evento = ?", [idEvento]);
+    await conexao?.executeParamCount("UPDATE evento SET encerrado_em = now() WHERE id_evento IN (?, ?)", [idEvento, idEventoFuturo]);
     servidor?.close();
     await conexao?.close();
     await fecharFila();

@@ -32,7 +32,8 @@ export interface ServicosFila {
 
 // Os três tipos de falha da spec (§4.2), mais os que a própria fila resolve sozinha.
 // "recusada" é a recusa definitiva de uma foto (não é JPEG, grande demais): repetir não muda.
-export type TipoFalha = "sem_conexao" | "estacao" | "foto" | "recusada" | "fora_de_ordem" | "hash_diferente";
+// "em_curso" é a estação ainda presa no pedaço de uma conexão que caiu: basta esperar.
+export type TipoFalha = "sem_conexao" | "estacao" | "foto" | "recusada" | "fora_de_ordem" | "em_curso" | "hash_diferente";
 
 export class FalhaDeEnvio extends Error {
     // Link desativado ou evento encerrado: diferente do disco cheio, "Continuar" não resolve.

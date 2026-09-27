@@ -4,6 +4,8 @@ import { config } from "../../services/config";
 import { ErroTratado } from "../../services/erro";
 import { criarFila } from "../../services/fila";
 import { DadosProcessarFoto, NOME_FILA } from "../../jobs/processarFoto";
+import { NOME_FILA as NOME_FILA_PUBLICAR } from "../../jobs/publicarFoto";
+import { caminhoPublicar } from "../../services/caminhos";
 import { ultimaSincronizacao } from "../../services/sincronizacaoEstacao";
 import { montarSinal } from "../../jobs/sinal";
 import { caminhoParcial } from "../../_FOTOGRAFO/upload/ctrl.upload";
@@ -12,14 +14,18 @@ import {
     encerrar,
     errosDoEvento,
     eventoAberto,
-    eventoEmAndamento,
+    eventosAbertos,
     filaDoEvento,
     fotoComErro,
     fotografosDoEvento,
     fotosComErroDoEvento,
+    hojeNoFuso,
     LinhaErro,
+    LinhaFotoComErro,
     limparErro,
+    refazerDerivados,
 } from "./sql.painel";
+import { escolherEvento } from "./regras";
 
 interface Gpu {
     utilizacao: number;
@@ -47,15 +53,27 @@ export async function arquivoDoErro(erro: Pick<LinhaErro, "caminho_original" | "
     return null;
 }
 
+// As versões web são apagadas depois de publicadas: se alguma sumiu antes disso, só gerando
+// de novo.
+async function faltaDerivado(foto: Pick<LinhaFotoComErro, "id_evento" | "hash_arquivo">): Promise<boolean> {
+    for (const tipo of ["web", "thumb", "previa"] as const)
+        if (!(await existe(caminhoPublicar(config.raizPublicar, foto.id_evento, foto.hash_arquivo, tipo)))) return true;
+    return false;
+}
+
+const LISTA_ABERTOS = 30;
+
 export default class PainelCtrl {
     constructor(private conexao: ConexaoPostgres) {}
 
-    async getPainel() {
-        const [evento, sinal, sincronizou] = await Promise.all([
-            eventoEmAndamento(this.conexao),
+    async getPainel(idEventoPreferido: number | null) {
+        const [abertos, hoje, sinal, sincronizou] = await Promise.all([
+            eventosAbertos(this.conexao),
+            hojeNoFuso(this.conexao),
             montarSinal(this.conexao),
             ultimaSincronizacao(),
         ]);
+        const evento = escolherEvento(abertos, hoje, idEventoPreferido);
 
         const metricas = sinal as {
             fotos_min: Record<string, number>;
@@ -73,6 +91,8 @@ export default class PainelCtrl {
             },
             vps: { ultima_sincronizacao: sincronizou },
             enderecos: { lan: config.enderecoLan, tunel: config.enderecoTunel },
+            // O seletor mostra os mais próximos de hoje; o escolhido entra mesmo se estiver longe.
+            eventos_abertos: [...abertos.slice(0, LISTA_ABERTOS), ...(evento && !abertos.slice(0, LISTA_ABERTOS).includes(evento) ? [evento] : [])],
         };
 
         if (!evento)
@@ -93,7 +113,7 @@ export default class PainelCtrl {
 
         return {
             ...base,
-            evento: { id_evento: evento.id_evento, nome: evento.nome, desde: evento.criado_em },
+            evento: { id_evento: evento.id_evento, nome: evento.nome, data_inicio: evento.data_inicio, data_fim: evento.data_fim },
             fila,
             fotografos,
             erros: await Promise.all(
@@ -110,15 +130,11 @@ export default class PainelCtrl {
         };
     }
 
-    async reprocessar(idFoto: number | null): Promise<{ reenfileiradas: number; sem_arquivo: number }> {
-        let fotos;
-        if (idFoto !== null) fotos = await fotoComErro(this.conexao, idFoto);
-        else {
-            const evento = await eventoEmAndamento(this.conexao);
-            fotos = evento ? await fotosComErroDoEvento(this.conexao, evento.id_evento) : [];
-        }
+    async reprocessar(alvo: { idFoto: number } | { idEvento: number }): Promise<{ reenfileiradas: number; sem_arquivo: number }> {
+        const fotos = "idFoto" in alvo ? await fotoComErro(this.conexao, alvo.idFoto) : await fotosComErroDoEvento(this.conexao, alvo.idEvento);
 
         const fila = criarFila<DadosProcessarFoto>(NOME_FILA);
+        const filaPublicar = criarFila(NOME_FILA_PUBLICAR);
         let reenfileiradas = 0;
         let semArquivo = 0;
         for (const foto of fotos) {
@@ -132,6 +148,12 @@ export default class PainelCtrl {
             // devolveria o job velho e nada seria reprocessado.
             const jobId = `${foto.id_evento}_${foto.hash_arquivo}`;
             await (await fila.getJob(jobId))?.remove();
+            if (foto.erro_etapa === "publicacao") {
+                // Mesmo motivo do lado da publicação: o processamento enfileira a publicação com
+                // este id, e o job que falhou ficaria no lugar do novo.
+                await (await filaPublicar.getJob(jobId))?.remove();
+                if (await faltaDerivado(foto)) await refazerDerivados(this.conexao, foto.id_foto);
+            }
             await limparErro(this.conexao, foto.id_foto);
             await fila.add(
                 NOME_FILA,

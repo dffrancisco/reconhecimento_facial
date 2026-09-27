@@ -129,6 +129,29 @@ describe("FilaDeEnvio", () => {
         expect(fila.estado().itens[0].tentativas).toBe(0);
     });
 
+    test("pedaço anterior ainda preso na estação: espera cada vez mais e manda do mesmo byte, sem gastar tentativa", async () => {
+        // Depois de uma queda de Wi-Fi, a conexão velha segura a trava até a estação desistir dela.
+        let presas = 8;
+        const { servicos, recebidos } = estacaoFalsa();
+        const original = servicos.enviarPedaco;
+        servicos.enviarPedaco = vi.fn(async (e) => {
+            if (e.offset === 8 && presas > 0) {
+                presas--;
+                throw new FalhaDeEnvio("em_curso", "Outro pedaço desta foto ainda está chegando.");
+            }
+            return original(e);
+        });
+        const fila = new FilaDeEnvio(servicos, { pedacoBytes: 8 });
+
+        fila.adicionar([{ chave: "a", arquivo: arquivo(20) }]);
+        await ate(() => fila.estado().enviados === 1);
+
+        expect(recebidos.map((r) => r.offset)).toEqual([0, 8, 16]);
+        expect(vi.mocked(servicos.esperar).mock.calls.map(([ms]) => ms)).toEqual([1000, 2000, 4000, 8000, 16000, 32000, 32000, 32000]);
+        expect(fila.estado().itens[0].tentativas).toBe(0);
+        expect(fila.estado().semConexaoDesde).toBeNull();
+    });
+
     test("sem conexão, espera e continua sozinha, sem desistir e sem gastar tentativa", async () => {
         let falhas = 0;
         const agora = { valor: 1000 };

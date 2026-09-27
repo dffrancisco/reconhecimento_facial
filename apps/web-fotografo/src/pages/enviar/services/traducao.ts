@@ -19,6 +19,7 @@ export function falhaDoPedaco(status: number, corpo: unknown): FalhaDeEnvio {
     const mensagem = typeof c.msg === "string" && c.msg ? c.msg : `A estação recusou o envio (código ${status}).`;
     const codigo = typeof c.codigo === "string" ? c.codigo : undefined;
 
+    if (status === 409 && codigo === "em_curso") return new FalhaDeEnvio("em_curso", mensagem);
     if (status === 409 && typeof c.bytes_recebidos === "number") return new FalhaDeEnvio("fora_de_ordem", mensagem, c.bytes_recebidos);
     if (codigo && PARA_TUDO.has(codigo)) return paraTudo(mensagem, codigo);
     if (codigo === "hash_diferente") return new FalhaDeEnvio("hash_diferente", mensagem);

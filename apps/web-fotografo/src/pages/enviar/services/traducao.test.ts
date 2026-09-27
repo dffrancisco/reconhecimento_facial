@@ -13,6 +13,12 @@ describe("falhaDoPedaco — resposta do PUT vira tipo de falha da fila", () => {
         expect(f.bytesRecebidos).toBe(16);
     });
 
+    test("409 de outro pedaço ainda em curso não diz de onde continuar: é para esperar", () => {
+        const f = falhaDoPedaco(409, { msg: "Outro pedaço desta foto ainda está chegando.", codigo: "em_curso" });
+        expect(f.tipo).toBe("em_curso");
+        expect(f.bytesRecebidos).toBeUndefined();
+    });
+
     test("link fechado, evento encerrado e disco cheio param a fila inteira", () => {
         expect(falhaDoPedaco(422, { msg: "x", codigo: "link_invalido" }).tipo).toBe("estacao");
         expect(falhaDoPedaco(422, { msg: "x", codigo: "evento_encerrado" }).tipo).toBe("estacao");

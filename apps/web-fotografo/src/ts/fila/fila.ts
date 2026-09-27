@@ -227,6 +227,7 @@ export class FilaDeEnvio {
 
         // Pelo menos um pedaço, mesmo vazio: a estação que já tem o arquivo inteiro (caiu antes
         // de conferir) só conclui quando recebe um pedaço no fim.
+        let esperasEmCurso = 0;
         for (;;) {
             if (!this.podeSeguir()) return false;
             const pedaco = item.arquivo.slice(offset, offset + this.opcoes.pedacoBytes);
@@ -245,6 +246,12 @@ export class FilaDeEnvio {
             } catch (erro) {
                 if (erro instanceof FalhaDeEnvio && erro.tipo === "fora_de_ordem" && erro.bytesRecebidos !== undefined) {
                     offset = erro.bytesRecebidos;
+                    continue;
+                }
+                if (erro instanceof FalhaDeEnvio && erro.tipo === "em_curso") {
+                    // A estação só solta o pedaço preso quando desiste da conexão que caiu, o que
+                    // leva minutos: gastar as tentativas da foto aqui marcaria erro à toa.
+                    await this.servicos.esperar(espera(esperasEmCurso++));
                     continue;
                 }
                 throw erro;

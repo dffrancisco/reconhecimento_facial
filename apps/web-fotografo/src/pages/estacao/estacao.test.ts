@@ -8,9 +8,13 @@ import type { RespostaPainel } from "./interfaces";
 
 vi.mock("./services/estacao.service", () => ({ login: vi.fn(), getPainel: vi.fn(), reprocessar: vi.fn(), encerrarEvento: vi.fn() }));
 
+const serra = { id_evento: 7, nome: "Corrida da Serra", data_inicio: "2026-09-26", data_fim: "2026-09-26" };
+const praia = { id_evento: 9, nome: "Corrida da Praia", data_inicio: "2026-10-10", data_fim: "2026-10-11" };
+
 function painel(parcial: Partial<RespostaPainel> = {}): RespostaPainel {
     return {
-        evento: { id_evento: 7, nome: "Corrida da Serra", desde: "2026-09-26T10:10:00.000Z" },
+        evento: serra,
+        eventos_abertos: [serra],
         metricas: { fotos_min: 38, latencia_p50_ms: 9000, latencia_p95_ms: 21000, taxa_erro: 0.004, gpu: null },
         fila: { recebidas: 146, rostos: 58, derivados: 17, esperando_publicar: 34 },
         vps: { ultima_sincronizacao: new Date().toISOString() },
@@ -87,10 +91,54 @@ describe("login do painel", () => {
 describe("painel", () => {
     test("sem evento em andamento, explica o que fazer", async () => {
         entrar();
-        vi.mocked(getPainel).mockResolvedValue(painel({ evento: null, fotografos: [], erros: [] }));
+        vi.mocked(getPainel).mockResolvedValue(painel({ evento: null, eventos_abertos: [], fotografos: [], erros: [] }));
         const t = await abrir();
 
         expect(t.text()).toContain("Nenhum evento em andamento nesta estação");
+        expect(t.find("[data-acao=escolher-evento]").exists()).toBe(false);
+    });
+
+    test("sem evento hoje mas com eventos abertos em outras datas, deixa escolher um", async () => {
+        entrar();
+        vi.mocked(getPainel).mockResolvedValue(painel({ evento: null, eventos_abertos: [praia], fotografos: [], erros: [] }));
+        const t = await abrir();
+
+        expect(t.text()).toContain("Nenhum evento em andamento nesta estação");
+        await t.get("[data-acao=escolher-evento]").setValue("9");
+        await flushPromises();
+
+        expect(getPainel).toHaveBeenLastCalledWith(9);
+    });
+
+    test("mostra as datas do evento", async () => {
+        entrar();
+        vi.mocked(getPainel).mockResolvedValue(painel({ evento: praia, eventos_abertos: [praia] }));
+        const t = await abrir();
+
+        expect(t.text()).toContain("10/10/2026 a 11/10/2026");
+    });
+
+    test("com mais de um evento aberto, o operador escolhe qual acompanhar e a escolha fica guardada", async () => {
+        entrar();
+        vi.mocked(getPainel).mockResolvedValue(painel({ eventos_abertos: [serra, praia] }));
+        const t = await abrir();
+        expect(getPainel).toHaveBeenCalledWith(null);
+
+        vi.mocked(getPainel).mockResolvedValue(painel({ evento: praia, eventos_abertos: [serra, praia] }));
+        await t.get("[data-acao=escolher-evento]").setValue("9");
+        await flushPromises();
+
+        expect(getPainel).toHaveBeenLastCalledWith(9);
+        expect(localStorage.getItem("evento_estacao")).toBe("9");
+    });
+
+    test("a escolha guardada vale ao abrir o painel; se o evento fechou, é esquecida", async () => {
+        entrar();
+        localStorage.setItem("evento_estacao", "9");
+        await abrir();
+
+        expect(getPainel).toHaveBeenCalledWith(9);
+        expect(localStorage.getItem("evento_estacao")).toBeNull();
     });
 
     test("mostra os números, a fila por etapa e a placa de vídeo como — quando não informada", async () => {
@@ -134,9 +182,20 @@ describe("painel", () => {
         await t.get("[data-acao=reprocessar-41]").trigger("click");
         await flushPromises();
 
-        expect(reprocessar).toHaveBeenCalledWith(41);
+        expect(reprocessar).toHaveBeenCalledWith({ id_foto: 41 });
         expect(t.text()).toContain("Peça ao fotógrafo para reenviar");
         expect(t.find("[data-acao=reprocessar-42]").exists()).toBe(false);
+    });
+
+    test("reprocessar todos vale para o evento mostrado", async () => {
+        entrar();
+        vi.mocked(reprocessar).mockResolvedValue({ reenfileiradas: 1, sem_arquivo: 0 });
+        const t = await abrir();
+
+        await t.get("[data-acao=reprocessar-todos]").trigger("click");
+        await flushPromises();
+
+        expect(reprocessar).toHaveBeenCalledWith({ id_evento: 7 });
     });
 
     test("encerrar fica travado com foto em processamento", async () => {

@@ -5,12 +5,33 @@ import type { RespostaPainel } from "./interfaces";
 import { encerrarEvento, getPainel, login, reprocessar } from "./services/estacao.service";
 
 const ATUALIZACAO_MS = 2000;
+const CHAVE_EVENTO = "evento_estacao";
+
+// A escolha é deste computador: cada painel aberto acompanha o evento que quiser.
+function lerEscolha(): number | null {
+    try {
+        const id = Number(localStorage.getItem(CHAVE_EVENTO));
+        return Number.isInteger(id) && id > 0 ? id : null;
+    } catch {
+        return null;
+    }
+}
+
+function guardarEscolha(id: number | null): void {
+    try {
+        if (id === null) localStorage.removeItem(CHAVE_EVENTO);
+        else localStorage.setItem(CHAVE_EVENTO, String(id));
+    } catch {
+        // Sem armazenamento a escolha vale só até recarregar a página.
+    }
+}
 
 export const state = reactive({
     carregando: true,
     sessao: null as Sessao | null,
     erroLogin: "",
     painel: null as RespostaPainel | null,
+    idEventoEscolhido: null as number | null,
     mensagem: "",
     qrGrande: "",
     confirmandoEncerrar: false,
@@ -34,6 +55,7 @@ export const actions = {
     async init(): Promise<void> {
         pararAtualizacao();
         state.sessao = lerSessao();
+        state.idEventoEscolhido = lerEscolha();
         state.carregando = Boolean(state.sessao);
         if (!state.sessao) {
             state.carregando = false;
@@ -50,9 +72,18 @@ export const actions = {
     },
 
     async carregar(): Promise<void> {
+        const pedido = state.idEventoEscolhido;
         try {
-            state.painel = await getPainel();
+            const painel = await getPainel(pedido);
+            // O operador trocou de evento com este pedido no ar: a resposta é do evento anterior.
+            if (pedido !== state.idEventoEscolhido) return;
+            state.painel = painel;
             state.agora = Date.now();
+            // A estação ignora a escolha de um evento que fechou e volta ao de hoje.
+            if (pedido !== null && painel.evento?.id_evento !== pedido) {
+                state.idEventoEscolhido = null;
+                guardarEscolha(null);
+            }
         } catch (erro) {
             if (erro instanceof ErroDaApi && erro.codigo === "sessao_expirada") voltarAoLogin(erro.message);
             else if (erro instanceof ErroDaApi && !erro.semConexao && !state.painel) voltarAoLogin(erro.message);
@@ -76,9 +107,19 @@ export const actions = {
         voltarAoLogin();
     },
 
+    async escolherEvento(idEvento: number): Promise<void> {
+        state.idEventoEscolhido = idEvento;
+        guardarEscolha(idEvento);
+        state.mensagem = "";
+        await actions.carregar();
+    },
+
+    // Sem `idFoto`, todas as fotos com erro do evento mostrado.
     async reprocessar(idFoto?: number): Promise<void> {
+        const idEvento = state.painel?.evento?.id_evento;
+        if (idFoto === undefined && !idEvento) return;
         try {
-            const r = await reprocessar(idFoto);
+            const r = await reprocessar(idFoto !== undefined ? { id_foto: idFoto } : { id_evento: idEvento! });
             state.mensagem =
                 r.sem_arquivo > 0
                     ? `${r.reenfileiradas} de volta na fila; ${r.sem_arquivo} sem arquivo na estação (peça reenvio).`

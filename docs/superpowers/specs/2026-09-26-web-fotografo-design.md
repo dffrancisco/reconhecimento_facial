@@ -13,7 +13,7 @@ Hoje as fotos só entram pela linha de comando (`ingerir`), lendo uma pasta no c
 
 **Aparelho principal do fotógrafo:** notebook, arrastando uma pasta com centenas de fotos JPEG de 10 a 25 MB. Celular funciona, mas não é o caso principal.
 
-**Uma estação atende um evento por vez.** O painel mostra o evento em andamento.
+**Uma estação atende um evento por vez.** O painel mostra o evento em andamento: o que está acontecendo hoje, pelas datas. O operador pode escolher outro evento aberto.
 
 **Sucesso:**
 
@@ -92,17 +92,17 @@ De cima para baixo:
 
 **Login.** Sem sessão, a rota mostra o login (login e senha do operador). A sessão dura 12 h.
 
-**Sem evento em andamento.** A tela diz "Nenhum evento em andamento nesta estação. Crie ou reative o evento no admin e aguarde a sincronização."
+**Sem evento em andamento.** A tela diz "Nenhum evento em andamento nesta estação." Havendo eventos abertos com outras datas, ela oferece escolher um deles; senão, acrescenta "Crie ou reative o evento no admin e aguarde a sincronização."
 
 **Com evento.** O painel se atualiza a cada 2 s e mostra, de cima para baixo:
 
-1. **Cabeçalho:** selo, "Estação", nome do evento, situação do VPS ("VPS conectado · sincronizou há 20 s", ou em vermelho quando a última sincronização passou de 3 min) e "nome do operador · Sair".
+1. **Cabeçalho:** selo, "Estação", nome e datas do evento (com mais de um evento aberto, um seletor; a escolha fica guardada no navegador e é esquecida quando o evento fecha), situação do VPS ("VPS conectado · sincronizou há 20 s", ou em vermelho quando a última sincronização passou de 3 min) e "nome do operador · Sair".
 2. **Quatro números:**
    - fotos/min (janela de 5 min);
    - tempo da chegada à publicação (p50, com o p95 ao lado);
    - taxa de erro (30 min);
    - placa de vídeo (uso % e VRAM usada de total; "—" quando o vision não informa).
-3. **Fila por etapa do evento:** recebidas (`registrada`/`original`), rostos, versões web (`derivados` em processamento) e esperando publicar.
+3. **Fila por etapa do evento:** recebidas (`registrada`, mais os uploads completos que o processamento ainda não pegou), rostos, versões web (`derivados` em processamento) e esperando publicar.
 4. **Fotógrafos do evento:** uma linha por vínculo ativo, com:
    - nome, enviadas, prontas e erros;
    - o link de upload com "Copiar" e um QR pequeno;
@@ -111,7 +111,7 @@ De cima para baixo:
    O link usa o endereço da rede local configurado na estação; o do túnel aparece como segundo link, para quem está longe (§5.3).
 5. **Erros de processamento:** arquivo, fotógrafo, etapa e mensagem, com "Reprocessar" por foto e "Reprocessar todos". Se o arquivo original não existe mais, a linha diz "Peça ao fotógrafo para reenviar" em vez do botão.
 6. **Encerrar evento.**
-   - **Quando habilita:** só quando nenhuma foto do evento está em processamento, isto é, fora de `publicada` e sem erro. Fotos com erro não bloqueiam: uma foto corrompida que nunca processa não pode prender o evento para sempre.
+   - **Quando habilita:** só quando nenhuma foto do evento está em processamento, isto é, fora de `publicada` e sem erro, ou recebida e ainda sem registro em `foto`. Fotos com erro não bloqueiam: uma foto corrompida que nunca processa não pode prender o evento para sempre.
    - **Confirmação:** "Encerrar apaga os rostos guardados nesta estação e os links param de aceitar fotos. As fotos publicadas continuam no ar." Havendo fotos com erro, ela acrescenta "N fotos com erro não serão publicadas".
    - **Depois:** o painel volta ao estado "nenhum evento em andamento".
 
@@ -193,7 +193,7 @@ Público. Toda chamada leva `token` (o `token_upload`). Um vínculo é válido q
 **Validação.**
 
 - O upload precisa pertencer ao vínculo do token e estar `recebendo`.
-- Um pedaço por vez por upload: há uma trava em memória por `id_upload`, e um segundo pedaço concorrente recebe 409.
+- Um pedaço por vez por upload: há uma trava em memória por `id_upload`, e um segundo pedaço concorrente recebe 409 `em_curso` (sem `bytes_recebidos`). Quase sempre é o pedaço de uma conexão que caiu, que segura a trava até a estação desistir dele: o navegador espera, com intervalos crescentes, e manda de novo do mesmo byte, sem gastar tentativa da foto.
 
 **Gravação.**
 
@@ -217,13 +217,14 @@ Com sessão do operador, exceto o login.
 | Módulo · chamada | O que faz |
 |---|---|
 | `login.login { login, senha }` | Confere com os operadores sincronizados (`deletado = 'N'`), com o mesmo hash de senha do admin. Devolve o token da sessão (12 h) e o nome. Limite de 10 tentativas por IP a cada 10 min. |
-| `painel.getPainel` | Uma chamada com tudo o que a tela mostra (§3.3). |
-| `painel.reprocessar { id_foto? }` | Com `id_foto`, uma foto; sem, todas as do evento com erro. Limpa `erro` e reenfileira `processar-foto` a partir de `caminho_original` (ou do arquivo parcial, se o erro foi antes da etapa `original`). Sem arquivo em disco, responde que não há o que reprocessar. |
+| `painel.getPainel { id_evento? }` | Uma chamada com tudo o que a tela mostra (§3.3). `id_evento` é o evento escolhido pelo operador; se ele não estiver mais aberto, vale a regra de datas. |
+| `painel.reprocessar { id_foto \| id_evento }` | Com `id_foto`, uma foto; com `id_evento`, todas as do evento com erro. Limpa `erro` e reenfileira `processar-foto` a partir de `caminho_original` (ou do arquivo parcial, se o erro foi antes da etapa `original`). Erro de publicação: tira também o job de `publicar-foto` que falhou e, se alguma versão web sumiu, volta a foto para `rostos` para gerá-las de novo. Sem arquivo em disco, responde que não há o que reprocessar. |
 | `painel.encerrarEvento { id_evento }` | Recusa com 422 se houver foto em processamento (fora de `publicada` e sem erro). Senão, grava `encerrado_em`, apaga os `rosto` e `numero_peito` do evento na estação (plataforma §10) e devolve o painel vazio. |
 
 O que `getPainel` reúne:
 
-- **Evento em andamento:** o mais recente (`criado_em`) com `ativo = 'S'`, não encerrado e não deletado.
+- **Evento em andamento:** entre os eventos com `ativo = 'S'`, não encerrados e não deletados, o que está acontecendo hoje no fuso `America/Sao_Paulo`: de `data_inicio` (ou `data_fim`, se não houver início) até 3 dias depois de `data_fim`, para os envios dos dias seguintes. Dois ao mesmo tempo: o que começou por último. Não é o mais recente: a sincronização traz também os eventos cadastrados com antecedência. Nenhum acontecendo: `evento: null`.
+- **Eventos abertos:** os 30 mais próximos de hoje, para o seletor (o escolhido entra mesmo se estiver longe).
 - **Métricas:** as que o sinal já monta (`montarSinal`).
 - **Fila por etapa:** filtrada pelo evento.
 - **Situação do VPS:** a última sincronização bem-sucedida, que o job de sincronização passa a registrar no Redis.
