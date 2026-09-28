@@ -32,6 +32,17 @@ describe("filtrarArquivos", () => {
         expect(r).toEqual({ aceitos: [], recusados: [], ignorados: [] });
     });
 
+    test("foto com 0 bytes não vai para a estação e diz o que fazer", () => {
+        // O Windows cria o arquivo antes de terminar de copiar do cartão: solta cedo demais, a
+        // foto chega vazia, e a estação só saberia dizer "tamanho inválido".
+        const vazia = { size: 0, name: "DSC03191.jpg", lastModified: 1 } as File;
+        const r = filtrarArquivos([{ arquivo: vazia, caminho: "cartao/DSC03191.jpg" }]);
+        expect(r.aceitos).toEqual([]);
+        expect(r.recusados).toEqual([
+            { nome: "DSC03191.jpg", mensagem: "A foto está vazia (0 bytes). Se ela ainda estava sendo copiada, espere terminar e solte de novo." },
+        ]);
+    });
+
     test("JPEG acima de 100 MB é recusado com a mesma frase da estação; 100 MB exatos passam", () => {
         const grande = { size: 100 * 1024 * 1024 + 1, name: "gigante.jpg", lastModified: 1 } as File;
         const limite = { size: 100 * 1024 * 1024, name: "limite.jpg", lastModified: 1 } as File;

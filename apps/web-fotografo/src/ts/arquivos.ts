@@ -31,6 +31,16 @@ export function filtrarArquivos(lista: ArquivoLido[]): Filtrados {
             filtrados.ignorados.push(arquivo.name);
             continue;
         }
+        // Solta antes de a cópia do cartão terminar, o arquivo existe mas ainda está vazio: a
+        // estação recusaria com "tamanho inválido", e "Tentar de novo" reenviaria o mesmo vazio.
+        // Solto de novo depois, ele entra com outro tamanho e, portanto, outra chave.
+        if (arquivo.size === 0) {
+            filtrados.recusados.push({
+                nome: arquivo.name,
+                mensagem: "A foto está vazia (0 bytes). Se ela ainda estava sendo copiada, espere terminar e solte de novo.",
+            });
+            continue;
+        }
         if (arquivo.size > TAMANHO_MAXIMO_FOTO) {
             filtrados.recusados.push({ nome: arquivo.name, mensagem: "Foto maior que 100 MB." });
             continue;
