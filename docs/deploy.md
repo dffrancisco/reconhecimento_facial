@@ -25,7 +25,7 @@ Gere cada um com `openssl rand -hex 32` e guarde num lugar seguro (gerenciador d
 Os dois endereços ficam **um nível só** abaixo de `taap.com.br`:
 
 - participante: `foto.taap.com.br`
-- admin: `admin-foto.taap.com.br`
+- admin: `fotoadmin.taap.com.br`
 
 O certificado gratuito da Cloudflare cobre só um nível de subdomínio. Um endereço como `admin.foto.taap.com.br` dá erro de certificado no navegador.
 
@@ -53,7 +53,7 @@ A nuvem laranja precisa ficar sempre ligada: o limite de buscas por pessoa usa o
 Só o serviço **`arquivos`** recebe domínio. No campo **Domains** dele, coloque os dois, separados por vírgula:
 
 ```
-https://foto.taap.com.br,https://admin-foto.taap.com.br
+https://foto.taap.com.br,https://fotoadmin.taap.com.br
 ```
 
 Os outros serviços ficam sem domínio: o nginx do `arquivos` entrega as duas telas e encaminha o `/api` para a API por dentro.
@@ -69,7 +69,7 @@ Na aba de variáveis de ambiente, preencha:
 | `ARQUIVO_SEGREDO` | o seu |
 | `OPERADOR_SEGREDO` | o da VPS |
 | `DOMINIO_PARTICIPANTE` | `foto.taap.com.br` (sem `https://`) |
-| `DOMINIO_ADMIN` | `admin-foto.taap.com.br` (sem `https://`) |
+| `DOMINIO_ADMIN` | `fotoadmin.taap.com.br` (sem `https://`) |
 
 Opcionais, já têm padrão: `ARQUIVO_LINK_VALIDADE_S` (3600), `BUSCA_LIMITE_IP` (10), `CONFIAR_CLOUDFLARE` (true), `SELFIE_CONCORRENCIA` (núcleos − 1).
 
@@ -83,7 +83,7 @@ Quando terminar:
 
 - `migrate` aparece como **Exited**. É o esperado: ele roda as migrações do banco e termina.
 - `https://foto.taap.com.br` abre a tela do participante.
-- `https://admin-foto.taap.com.br` abre a tela de entrada do admin.
+- `https://fotoadmin.taap.com.br` abre a tela de entrada do admin.
 
 ### 3.5 Primeiro operador
 
@@ -127,7 +127,7 @@ Edite o `.env.estacao`:
 |---|---|
 | `POSTGRES_PASSWORD` | o da estação |
 | `ESTACAO_CHAVE` | **o mesmo** da VPS |
-| `VPS_URL` | `https://admin-foto.taap.com.br` |
+| `VPS_URL` | `https://fotoadmin.taap.com.br` |
 | `OPERADOR_SEGREDO` | o da estação |
 | `PORTA_LAN` | `8090` |
 | `ENDERECO_LAN` | `http://<IP deste computador na rede>:8090`. Em casa, hoje: `http://192.168.100.18:8090` |
