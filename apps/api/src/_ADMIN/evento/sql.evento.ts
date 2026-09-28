@@ -1,6 +1,12 @@
 import ConexaoPostgres from "../../db/conexaoPostgres";
 import { ConfigEvento, LinhaEvento } from "./i.evento";
 
+// Datas em texto (YYYY-MM-DD): o `date` do Postgres viraria Date no fuso do processo, e a
+// tela mostraria o dia anterior.
+const COLUNAS = `id_evento, nome, slug, tipo, privado, chave_acesso, chave_anfitriao,
+       to_char(data_inicio, 'YYYY-MM-DD') AS data_inicio, to_char(data_fim, 'YYYY-MM-DD') AS data_fim,
+       ativo, config, criado_em`;
+
 export async function inserirEvento(
     conexao: ConexaoPostgres,
     dados: {
@@ -17,20 +23,18 @@ export async function inserirEvento(
 ): Promise<LinhaEvento> {
     const [linha] = await conexao.queryParam<LinhaEvento>(
         `INSERT INTO evento (nome, slug, tipo, privado, chave_acesso, chave_anfitriao, data_inicio, data_fim, config)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING ${COLUNAS}`,
         [dados.nome, dados.slug, dados.tipo, dados.privado, dados.chave_acesso, dados.chave_anfitriao, dados.data_inicio, dados.data_fim, JSON.stringify(dados.config)]
     );
     return linha;
 }
 
 export async function listarEventosSql(conexao: ConexaoPostgres): Promise<LinhaEvento[]> {
-    return conexao.queryParam<LinhaEvento>(
-        "SELECT id_evento, nome, slug, tipo, privado, chave_anfitriao, data_inicio, data_fim, ativo, criado_em FROM evento WHERE deletado = 'N' ORDER BY criado_em DESC"
-    );
+    return conexao.queryParam<LinhaEvento>(`SELECT ${COLUNAS} FROM evento WHERE deletado = 'N' ORDER BY criado_em DESC`);
 }
 
 export async function obterEventoSql(conexao: ConexaoPostgres, idEvento: number): Promise<LinhaEvento | undefined> {
-    return conexao.queryOneParam<LinhaEvento>("SELECT * FROM evento WHERE id_evento = ? AND deletado = 'N'", [idEvento]);
+    return conexao.queryOneParam<LinhaEvento>(`SELECT ${COLUNAS} FROM evento WHERE id_evento = ? AND deletado = 'N'`, [idEvento]);
 }
 
 export async function atualizarEventoSql(

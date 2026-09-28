@@ -106,6 +106,73 @@ test("subirMarcaDagua recusa arquivo maior que 2 MB", async () => {
     );
 });
 
+test("cria já com a config informada, mesclada sobre o padrão do tipo", async () => {
+    const evento = await ctrl.criarEvento({
+        nome: "Corrida W",
+        slug: `corrida-w-${Date.now()}`,
+        tipo: "esportivo",
+        data_inicio: "2026-10-10",
+        data_fim: "2026-10-11",
+        config: { exigir_whatsapp: false },
+    });
+    assert.strictEqual(evento.config.exigir_whatsapp, false);
+    assert.strictEqual(evento.config.max_selfies, 3);
+    assert.strictEqual(evento.config.organizador, "Corrida W");
+});
+
+test("devolve as datas como texto, sem escorregar de dia pelo fuso", async () => {
+    const evento = await ctrl.criarEvento({
+        nome: "Datas",
+        slug: `datas-texto-${Date.now()}`,
+        tipo: "esportivo",
+        data_inicio: "2026-10-10",
+        data_fim: "2026-10-11",
+    });
+    assert.strictEqual(evento.data_inicio, "2026-10-10");
+    assert.strictEqual(evento.data_fim, "2026-10-11");
+    assert.strictEqual((await ctrl.obterEvento(evento.id_evento)).data_inicio, "2026-10-10");
+    const naLista = (await ctrl.listarEventos()).find((e) => e.id_evento === evento.id_evento);
+    assert.strictEqual(naLista?.data_fim, "2026-10-11");
+});
+
+test("endereço repetido vira mensagem clara, não erro 500", async () => {
+    const slug = `repetido-${Date.now()}`;
+    await ctrl.criarEvento({ nome: "A", slug, tipo: "esportivo", data_fim: "2026-12-31" });
+    await assert.rejects(
+        () => ctrl.criarEvento({ nome: "B", slug, tipo: "esportivo", data_fim: "2026-12-31" }),
+        (erro: unknown) =>
+            erro instanceof ErroTratado && erro.message === "Esse endereço já é de outro evento." && erro.codigo === "endereco_repetido"
+    );
+});
+
+test("recusa fim antes do início, na criação e na edição", async () => {
+    await assert.rejects(
+        () => ctrl.criarEvento({ nome: "C", slug: `datas-c-${Date.now()}`, tipo: "esportivo", data_inicio: "2026-10-11", data_fim: "2026-10-10" }),
+        /O fim do evento não pode ser antes do início/
+    );
+    const evento = await ctrl.criarEvento({ nome: "D", slug: `datas-d-${Date.now()}`, tipo: "esportivo", data_inicio: "2026-10-10", data_fim: "2026-10-10" });
+    await assert.rejects(() => ctrl.editarEvento({ id_evento: evento.id_evento, data_fim: "2026-10-09" }), /O fim do evento não pode ser antes do início/);
+});
+
+test("editar com config fora da faixa recusa e não grava nada", async () => {
+    const evento = await ctrl.criarEvento({ nome: "E", slug: `faixa-${Date.now()}`, tipo: "esportivo", data_fim: "2026-12-31" });
+    await assert.rejects(() => ctrl.editarEvento({ id_evento: evento.id_evento, nome: "Outro", config: { max_selfies: 9 } }), /máximo de selfies/);
+    const lido = await ctrl.obterEvento(evento.id_evento);
+    assert.strictEqual(lido.nome, "E");
+    assert.strictEqual(lido.config.max_selfies, 3);
+});
+
+test("campo desconhecido na config é ignorado", async () => {
+    const evento = await ctrl.criarEvento({ nome: "F", slug: `extra-${Date.now()}`, tipo: "social", data_fim: "2026-12-31", config: { hackeado: true } });
+    assert.strictEqual("hackeado" in evento.config, false);
+});
+
+test("editar com data de início vazia grava o evento sem início", async () => {
+    const evento = await ctrl.criarEvento({ nome: "G", slug: `sem-inicio-${Date.now()}`, tipo: "esportivo", data_inicio: "2026-10-10", data_fim: "2026-10-10" });
+    const editado = await ctrl.editarEvento({ id_evento: evento.id_evento, data_inicio: "" });
+    assert.strictEqual(editado.data_inicio, null);
+});
+
 after(async () => {
     await conexao?.close();
     await fs.rm(raizMarcasTeste, { recursive: true, force: true });
