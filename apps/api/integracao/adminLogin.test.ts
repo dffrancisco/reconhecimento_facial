@@ -5,6 +5,7 @@ import { iniciarConfig, config } from "../src/services/config";
 import { criarOperador } from "../src/scripts/criarOperador";
 import { conferirToken } from "../src/services/token";
 import per from "../src/services/per";
+import { fecharFila, obterRedis } from "../src/services/fila";
 import Login from "../src/_ADMIN/login/route.login";
 
 before(() => {
@@ -20,6 +21,7 @@ before(() => {
         ARQUIVO_SEGREDO: "x",
         OPERADOR_SEGREDO: "a".repeat(32),
         VISION_URL: "http://127.0.0.1:1",
+        REDIS_PREFIXO: "fotos:teste:vps:",
     });
 });
 
@@ -45,6 +47,9 @@ before(async () => {
     await conexao.open();
     login = `login-teste-${Date.now()}`;
     await criarOperador(conexao, "Operadora", login, "senha-correta");
+    const redis = obterRedis();
+    const chaves = await redis.keys(`${config.redis.prefixo}limite:admin-login:*`);
+    if (chaves.length) await redis.del(...chaves);
 });
 
 test("login com senha certa devolve token válido", async () => {
@@ -79,8 +84,24 @@ test("login com usuário inexistente devolve 422 com a mesma mensagem (não vaza
     assert.strictEqual((res.chamadas.body as { msg: string }).msg, "Login ou senha inválidos.");
 });
 
+test("a 11ª tentativa do mesmo IP em 10 minutos é recusada, mesmo com a senha certa", async () => {
+    const tentar = async (senha: string) => {
+        const res = resFalso();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await per({ headers: {}, ip: "10.9.8.7", body: { call: "login", login, senha } } as any, res as any, () => {}, Login);
+        return res.chamadas;
+    };
+    for (let i = 0; i < 10; i++) await tentar("senha-errada");
+
+    const r = await tentar("senha-correta");
+
+    assert.strictEqual(r.status, 422);
+    assert.match(String((r.body as { msg: string }).msg), /Muitas tentativas/);
+});
+
 after(async () => {
     await conexao?.close();
+    await fecharFila();
 });
 
 // Fecha o pool: sem isso o processo de teste fica ~30s ocioso antes de sair.
