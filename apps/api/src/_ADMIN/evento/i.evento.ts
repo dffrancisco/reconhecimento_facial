@@ -22,3 +22,8 @@ export interface LinhaEvento {
     config: ConfigEvento;
     criado_em: string;
 }
+
+export interface LinksEvento {
+    participante: string;
+    anfitriao: string;
+}
