@@ -27,6 +27,7 @@ export interface iConfig {
     uploadPedacoBytes: number;
     enderecoLan: string | null;
     enderecoTunel: string | null;
+    enderecoParticipante: string | null;
 }
 
 const OBRIGATORIAS: Record<"comum" | tPapel, string[]> = {
@@ -102,6 +103,8 @@ export function carregarConfig(env: NodeJS.ProcessEnv): iConfig {
         uploadPedacoBytes: helper.numero(env.UPLOAD_PEDACO_MB, 8, "UPLOAD_PEDACO_MB") * 1024 * 1024,
         enderecoLan: helper.endereco(env.ENDERECO_LAN),
         enderecoTunel: helper.endereco(env.ENDERECO_TUNEL),
+        // Onde o app do participante está no ar: o admin monta com ele os links do evento.
+        enderecoParticipante: helper.endereco(env.ENDERECO_PARTICIPANTE),
     };
 }
 

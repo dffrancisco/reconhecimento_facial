@@ -26,6 +26,7 @@ before(() => {
         OPERADOR_SEGREDO: "a".repeat(32),
         VISION_URL: "http://127.0.0.1:1",
         RAIZ_MARCAS: raizMarcasTeste,
+        ENDERECO_PARTICIPANTE: "http://fotos.teste/",
     });
 });
 
@@ -171,6 +172,19 @@ test("editar com data de início vazia grava o evento sem início", async () => 
     const evento = await ctrl.criarEvento({ nome: "G", slug: `sem-inicio-${Date.now()}`, tipo: "esportivo", data_inicio: "2026-10-10", data_fim: "2026-10-10" });
     const editado = await ctrl.editarEvento({ id_evento: evento.id_evento, data_inicio: "" });
     assert.strictEqual(editado.data_inicio, null);
+});
+
+test("obterEvento traz os links do participante e do anfitrião", async () => {
+    const slug = `links-${Date.now()}`;
+    const publico = await ctrl.criarEvento({ nome: "Links", slug, tipo: "esportivo", data_fim: "2026-12-31" });
+    assert.deepStrictEqual((await ctrl.obterEvento(publico.id_evento)).links, {
+        participante: `http://fotos.teste/#/e/${slug}`,
+        anfitriao: `http://fotos.teste/#/a/${publico.chave_anfitriao}`,
+    });
+
+    const privado = await ctrl.criarEvento({ nome: "Links P", slug: `links-p-${Date.now()}`, tipo: "social", data_fim: "2026-12-31" });
+    const editado = await ctrl.editarEvento({ id_evento: privado.id_evento, nome: "Links P2" });
+    assert.strictEqual(editado.links?.participante, `http://fotos.teste/#/p/${privado.chave_acesso}`);
 });
 
 after(async () => {

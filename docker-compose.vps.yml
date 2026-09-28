@@ -54,6 +54,9 @@ services:
   api:
     build: { context: ., dockerfile: apps/api/Dockerfile }
     env_file: .env.vps
+    environment:
+      # Sai do domínio que o Traefik já usa: não há variável nova para preencher no .env.vps.
+      ENDERECO_PARTICIPANTE: https://${DOMINIO_PARTICIPANTE}
     depends_on:
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }

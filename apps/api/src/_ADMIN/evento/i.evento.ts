@@ -27,3 +27,5 @@ export interface LinksEvento {
     participante: string;
     anfitriao: string;
 }
+
+export type EventoComLinks = LinhaEvento & { links: LinksEvento | null };

@@ -11,7 +11,9 @@ Authorization: {{token}}
     "nome": "Corrida da Serra 2026",
     "slug": "corrida-da-serra-2026",
     "tipo": "esportivo",
-    "data_fim": "2026-11-01"
+    "data_inicio": "2026-11-01",
+    "data_fim": "2026-11-01",
+    "config": { "exigir_whatsapp": false }
 }
 
 ### Listar eventos
@@ -20,6 +22,13 @@ Content-Type: application/json
 Authorization: {{token}}
 
 { "call": "listarEventos" }
+
+### Obter evento (com os links do participante e do anfitrião)
+POST {{vps}}/api/admin/evento
+Content-Type: application/json
+Authorization: {{token}}
+
+{ "call": "obterEvento", "id_evento": 1 }
 
 ### Editar config
 POST {{vps}}/api/admin/evento

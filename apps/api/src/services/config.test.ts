@@ -116,6 +116,12 @@ describe("configuração do upload do fotógrafo", () => {
         assert.strictEqual(c.enderecoTunel, null);
     });
 
+    test("lê o endereço do app do participante sem barra no fim; sem ele, null", () => {
+        const vps = { ...BASE, PAPEL: "vps", ARQUIVO_SEGREDO: "x", OPERADOR_SEGREDO: "o".repeat(32), VISION_URL: "http://vision" };
+        assert.strictEqual(carregarConfig({ ...vps, ENDERECO_PARTICIPANTE: "https://fotos.exemplo.com.br/" }).enderecoParticipante, "https://fotos.exemplo.com.br");
+        assert.strictEqual(carregarConfig(vps).enderecoParticipante, null);
+    });
+
     test("lê o tamanho do pedaço em MB e os endereços sem barra no fim", () => {
         const c = carregarConfig({
             ...ESTACAO,

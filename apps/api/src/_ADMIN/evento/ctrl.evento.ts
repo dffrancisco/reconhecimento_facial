@@ -5,8 +5,8 @@ import ConexaoPostgres from "../../db/conexaoPostgres";
 import { ErroTratado } from "../../services/erro";
 import { gerarChave } from "../../services/aleatorio";
 import { config } from "../../services/config";
-import { ConfigEvento, LinhaEvento } from "./i.evento";
-import { slugRepetido, validarConfig, validarDatas, validarNome } from "./regras";
+import { ConfigEvento, EventoComLinks, LinhaEvento } from "./i.evento";
+import { montarLinks, slugRepetido, validarConfig, validarDatas, validarNome } from "./regras";
 import { atualizarEventoSql, inserirEvento, listarEventosSql, obterEventoSql } from "./sql.evento";
 
 const SLUG_VALIDO = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -83,10 +83,10 @@ export default class EventoCtrl {
         return listarEventosSql(this.conexao);
     }
 
-    async obterEvento(idEvento: number): Promise<LinhaEvento> {
+    async obterEvento(idEvento: number): Promise<EventoComLinks> {
         const evento = await obterEventoSql(this.conexao, idEvento);
         if (!evento) throw new ErroTratado("Evento não encontrado.");
-        return evento;
+        return { ...evento, links: montarLinks(config.enderecoParticipante, evento) };
     }
 
     async editarEvento(dados: {
@@ -97,7 +97,7 @@ export default class EventoCtrl {
         ativo?: boolean;
         privado?: boolean;
         config?: unknown;
-    }): Promise<LinhaEvento> {
+    }): Promise<EventoComLinks> {
         const atual = await this.obterEvento(dados.id_evento);
         const nome = dados.nome !== undefined ? dados.nome : atual.nome;
         exigir(validarNome(nome));
