@@ -51,3 +51,16 @@ export interface DadosEdicao {
         dias_expurgo: number | "";
     };
 }
+
+export interface Fotografo {
+    id_fotografo: number;
+    nome: string;
+    telefone: string | null;
+}
+
+export interface Vinculo {
+    id_evento_fotografo: number;
+    id_fotografo: number;
+    nome: string;
+    telefone: string | null;
+}

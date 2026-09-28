@@ -11,6 +11,11 @@ vi.mock("./services/evento.service", () => ({
     obterEvento: vi.fn(),
     editarEvento: vi.fn(),
     subirMarcaDagua: vi.fn(),
+    listarVinculos: vi.fn().mockResolvedValue([]),
+    listarFotografos: vi.fn().mockResolvedValue([]),
+    criarFotografo: vi.fn(),
+    vincularFotografo: vi.fn(),
+    desvincularFotografo: vi.fn(),
 }));
 
 function eventoFalso(parcial: Partial<Evento> = {}): Evento {

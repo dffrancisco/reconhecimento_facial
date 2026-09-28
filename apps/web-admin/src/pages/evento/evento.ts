@@ -1,7 +1,16 @@
 import { reactive } from "vue";
 import { fimAntesDoInicio } from "../../ts/datas";
-import type { DadosEdicao, Evento, FormDados } from "./interfaces";
-import { editarEvento, obterEvento, subirMarcaDagua } from "./services/evento.service";
+import type { DadosEdicao, Evento, FormDados, Fotografo, Vinculo } from "./interfaces";
+import {
+    criarFotografo,
+    desvincularFotografo,
+    editarEvento,
+    listarFotografos,
+    listarVinculos,
+    obterEvento,
+    subirMarcaDagua,
+    vincularFotografo,
+} from "./services/evento.service";
 
 export function formDoEvento(e: Evento): FormDados {
     return {
@@ -57,6 +66,14 @@ function estadoInicial() {
         erroMarca: "",
         qrGrande: "",
         mensagemLinks: "",
+        vinculos: [] as Vinculo[],
+        fotografos: [] as Fotografo[],
+        idParaAdicionar: 0,
+        novoNome: "",
+        novoTelefone: "",
+        removendo: null as Vinculo | null,
+        ocupadoFotografos: false,
+        erroFotografos: "",
     };
 }
 
@@ -69,6 +86,7 @@ export const actions = {
             const evento = await obterEvento(idEvento);
             state.evento = evento;
             state.form = formDoEvento(evento);
+            await actions.carregarFotografos();
         } catch (erro) {
             state.erro = mensagem(erro, "Não conseguimos abrir o evento.");
         } finally {
@@ -126,4 +144,67 @@ export const actions = {
     fecharQr(): void {
         state.qrGrande = "";
     },
+
+    async carregarFotografos(): Promise<void> {
+        if (!state.evento) return;
+        try {
+            const [vinculos, fotografos] = await Promise.all([listarVinculos(state.evento.id_evento), listarFotografos()]);
+            Object.assign(state, { vinculos, fotografos });
+        } catch (erro) {
+            state.erroFotografos = mensagem(erro, "Não conseguimos carregar os fotógrafos.");
+        }
+    },
+
+    async adicionar(): Promise<void> {
+        const idFotografo = Number(state.idParaAdicionar);
+        if (!idFotografo) return;
+        await comFotografos(async (idEvento) => {
+            await vincularFotografo(idEvento, idFotografo);
+            state.idParaAdicionar = 0;
+        });
+    },
+
+    async cadastrarEAdicionar(): Promise<void> {
+        const nome = state.novoNome.trim();
+        if (!nome) {
+            state.erroFotografos = "Informe o nome do fotógrafo.";
+            return;
+        }
+        await comFotografos(async (idEvento) => {
+            const fotografo = await criarFotografo(nome, state.novoTelefone.trim() || null);
+            await vincularFotografo(idEvento, fotografo.id_fotografo);
+            Object.assign(state, { novoNome: "", novoTelefone: "" });
+        });
+    },
+
+    pedirRemocao(vinculo: Vinculo): void {
+        state.removendo = vinculo;
+    },
+
+    cancelarRemocao(): void {
+        state.removendo = null;
+    },
+
+    async confirmarRemocao(): Promise<void> {
+        const vinculo = state.removendo;
+        state.removendo = null;
+        if (!vinculo) return;
+        await comFotografos(async () => {
+            await desvincularFotografo(vinculo.id_evento_fotografo);
+        });
+    },
 };
+
+// Uma operação por vez no bloco, e a lista recarregada no fim: é ela que diz quem ficou.
+async function comFotografos(operacao: (idEvento: number) => Promise<void>): Promise<void> {
+    if (!state.evento || state.ocupadoFotografos) return;
+    Object.assign(state, { ocupadoFotografos: true, erroFotografos: "" });
+    try {
+        await operacao(state.evento.id_evento);
+        await actions.carregarFotografos();
+    } catch (erro) {
+        state.erroFotografos = mensagem(erro, "Não conseguimos completar.");
+    } finally {
+        state.ocupadoFotografos = false;
+    }
+}
