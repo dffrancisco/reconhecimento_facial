@@ -55,6 +55,8 @@ function estadoInicial() {
         enviandoMarca: false,
         mensagemMarca: "",
         erroMarca: "",
+        qrGrande: "",
+        mensagemLinks: "",
     };
 }
 
@@ -105,5 +107,23 @@ export const actions = {
         } finally {
             state.enviandoMarca = false;
         }
+    },
+
+    async copiar(texto: string): Promise<void> {
+        try {
+            await navigator.clipboard.writeText(texto);
+            state.mensagemLinks = "Link copiado.";
+        } catch {
+            // Fora de HTTPS o navegador não libera a área de transferência: o link está na tela.
+            state.mensagemLinks = "O navegador não deixou copiar. Selecione o link e copie à mão.";
+        }
+    },
+
+    abrirQr(link: string): void {
+        state.qrGrande = link;
+    },
+
+    fecharQr(): void {
+        state.qrGrande = "";
     },
 };

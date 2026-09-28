@@ -4,6 +4,7 @@ import { useRoute } from "vue-router";
 import Cabecalho from "../../componentes/Cabecalho.vue";
 import { periodo } from "../../ts/datas";
 import Dados from "./components/Dados.vue";
+import Links from "./components/Links.vue";
 import { actions, state } from "./evento";
 
 const rota = useRoute();
@@ -26,6 +27,7 @@ nextTick(() => actions.init(Number(rota.params.id)));
                     {{ state.evento.ativo === "S" ? "Ativo" : "Inativo" }}
                 </p>
                 <Dados />
+                <Links />
             </template>
         </div>
     </main>
