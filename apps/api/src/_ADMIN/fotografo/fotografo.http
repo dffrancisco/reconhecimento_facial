@@ -21,3 +21,17 @@ Content-Type: application/json
 Authorization: {{token}}
 
 { "call": "vincularFotografo", "id_evento": 1, "id_fotografo": 1 }
+
+### Fotógrafos do evento (só os ativos)
+POST {{vps}}/api/admin/fotografo
+Content-Type: application/json
+Authorization: {{token}}
+
+{ "call": "listarVinculos", "id_evento": 1 }
+
+### Remover do evento (o link de upload para de valer)
+POST {{vps}}/api/admin/fotografo
+Content-Type: application/json
+Authorization: {{token}}
+
+{ "call": "desvincularFotografo", "id_evento_fotografo": 1 }

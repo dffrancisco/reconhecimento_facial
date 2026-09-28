@@ -18,7 +18,7 @@ export default class Fotografo implements iRota {
 
     async criarFotografo(req: Request) {
         if (!req.body.nome) return { msg: "Campo nome é obrigatório", error: true };
-        return this.ctrl.criarFotografo({ nome: req.body.nome, telefone: req.body.telefone ?? null });
+        return this.ctrl.criarFotografo({ nome: req.body.nome, telefone: req.body.telefone || null });
     }
 
     async listarFotografos() {
@@ -29,5 +29,15 @@ export default class Fotografo implements iRota {
         const { id_evento, id_fotografo } = req.body;
         if (!id_evento || !id_fotografo) return { msg: "Campos id_evento e id_fotografo são obrigatórios", error: true };
         return this.ctrl.vincularFotografo(Number(id_evento), Number(id_fotografo));
+    }
+
+    async listarVinculos(req: Request) {
+        if (!req.body.id_evento) return { msg: "Campo id_evento é obrigatório", error: true };
+        return this.ctrl.listarVinculos(Number(req.body.id_evento));
+    }
+
+    async desvincularFotografo(req: Request) {
+        if (!req.body.id_evento_fotografo) return { msg: "Campo id_evento_fotografo é obrigatório", error: true };
+        return this.ctrl.desvincularFotografo(Number(req.body.id_evento_fotografo));
     }
 }

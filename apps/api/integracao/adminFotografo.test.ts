@@ -65,6 +65,54 @@ test("vincular a um evento inexistente lança ErroTratado", async () => {
     await assert.rejects(() => ctrl.vincularFotografo(999_999, fotografo.id_fotografo), ErroTratado);
 });
 
+test("listarVinculos traz só os ativos do evento, com nome e telefone e sem o link", async () => {
+    const ana = await ctrl.criarFotografo({ nome: "Ana Lista", telefone: "+5511911112222" });
+    const bruno = await ctrl.criarFotografo({ nome: "Bruno Lista", telefone: null });
+    const vAna = await ctrl.vincularFotografo(idEvento, ana.id_fotografo);
+    const vBruno = await ctrl.vincularFotografo(idEvento, bruno.id_fotografo);
+    await ctrl.desvincularFotografo(vBruno.id_evento_fotografo);
+
+    const lista = await ctrl.listarVinculos(idEvento);
+
+    assert.deepStrictEqual(
+        lista.find((v) => v.id_evento_fotografo === vAna.id_evento_fotografo),
+        { id_evento_fotografo: vAna.id_evento_fotografo, id_fotografo: ana.id_fotografo, nome: "Ana Lista", telefone: "+5511911112222" }
+    );
+    assert.ok(!lista.some((v) => v.id_evento_fotografo === vBruno.id_evento_fotografo));
+});
+
+test("desvincular grava ativo = 'N'", async () => {
+    const f = await ctrl.criarFotografo({ nome: "Caio", telefone: null });
+    const v = await ctrl.vincularFotografo(idEvento, f.id_fotografo);
+
+    assert.deepStrictEqual(await ctrl.desvincularFotografo(v.id_evento_fotografo), { ok: true });
+
+    const [linha] = await conexao.queryParam<{ ativo: string }>("SELECT ativo FROM evento_fotografo WHERE id_evento_fotografo = ?", [
+        v.id_evento_fotografo,
+    ]);
+    assert.strictEqual(linha.ativo, "N");
+});
+
+test("desvincular vínculo que não existe lança ErroTratado", async () => {
+    await assert.rejects(() => ctrl.desvincularFotografo(999_999_999), ErroTratado);
+});
+
+test("vincular de novo depois de remover reativa com um link novo", async () => {
+    const f = await ctrl.criarFotografo({ nome: "Duda", telefone: null });
+    const antes = await ctrl.vincularFotografo(idEvento, f.id_fotografo);
+    await ctrl.desvincularFotografo(antes.id_evento_fotografo);
+
+    const depois = await ctrl.vincularFotografo(idEvento, f.id_fotografo);
+
+    assert.strictEqual(depois.id_evento_fotografo, antes.id_evento_fotografo);
+    assert.strictEqual(depois.ativo, "S");
+    assert.notStrictEqual(depois.token_upload, antes.token_upload);
+});
+
+test("vincular fotógrafo que não existe lança ErroTratado", async () => {
+    await assert.rejects(() => ctrl.vincularFotografo(idEvento, 999_999_999), ErroTratado);
+});
+
 after(async () => {
     await conexao?.close();
 });
