@@ -143,6 +143,26 @@ A selfie precisa ter um rosto só: foto em grupo volta com "Encontramos mais de 
 E a API limita as buscas por IP (10 a cada 10 minutos, `BUSCA_LIMITE_IP`); pelo nginx de
 dev todo pedido chega com o IP do container, então testes seguidos esbarram nesse limite.
 
+## Admin
+
+Em desenvolvimento, com recarregamento automático:
+
+```bash
+docker compose -f docker-compose.dev.yml up -d --build api-vps
+npm run dev -w apps/web-admin        # http://localhost:5175
+npm run test -w apps/web-admin       # Vitest + Vue Test Utils, sem API no ar
+```
+
+O Vite encaminha `/api` para a API do VPS de dev (`127.0.0.1:3002`). Entre com o operador de dev (`ana` / `senha-dev-123` depois do `criar-operador`).
+
+Servido como em produção pelo nginx do VPS: `docker compose -f docker-compose.dev.yml up -d --build arquivos` e abra `http://admin.localhost:8080` (o navegador resolve `*.localhost` para a própria máquina).
+
+- **Novo evento:** as datas já vêm com hoje. "Exigir WhatsApp" vem desligado: a verificação ainda não existe, e ligada o participante não vê as fotos.
+- **Página do evento:** dados e config, marca d'água, links do participante e do anfitrião (com QR) e os fotógrafos. Os links saem de `ENDERECO_PARTICIPANTE` (em dev, `http://localhost:8080`; na VPS, `https://${DOMINIO_PARTICIPANTE}`, montado pelo compose).
+- **Link de upload:** o admin só vincula o fotógrafo; o link e o QR ficam no painel da estação (`http://localhost:5174/#/estacao`), que é quem sabe o próprio endereço na rede do evento.
+- **Remover um fotógrafo** fecha o link dele em até 60 s. Adicionar de novo gera um link novo.
+- **Desativar o evento** também chega à estação em até 60 s (a sincronização leva os desativados nos últimos 7 dias).
+
 ## Upload do fotógrafo e painel da estação
 
 Em desenvolvimento, com recarregamento automático:
@@ -158,7 +178,7 @@ O Vite encaminha `/api` para a API da estação de dev (`127.0.0.1:3001`).
 - **Painel:** `http://localhost:5174/#/estacao`, com o mesmo login do admin (`ana` / `senha-dev-123` depois do `criar-operador`). Ele mostra o evento em andamento (o que está acontecendo hoje pelas datas; com mais de um aberto, o operador escolhe no cabeçalho) e, para cada fotógrafo vinculado, o link e o QR de upload.
 - **Envio:** abra o link do fotógrafo (`/#/?t=<token_upload>`) e solte uma pasta de JPEGs.
 
-O evento, o fotógrafo e o vínculo nascem no admin do VPS (`apps/api/src/_ADMIN/evento/evento.http` e `fotografo/fotografo.http`) e chegam à estação pela sincronização, a cada 60 s.
+O evento, o fotógrafo e o vínculo nascem no admin (ver "Admin" acima) e chegam à estação pela sincronização, a cada 60 s.
 
 **Na estação de verdade:**
 - `docker-compose.estacao.yml` sobe o serviço `web` (a tela, num nginx) atrás do mesmo Traefik da API.

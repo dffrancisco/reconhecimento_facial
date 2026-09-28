@@ -55,3 +55,23 @@ server {
         return 200 "ok\n";
     }
 }
+
+# O admin no domínio dele: só o app, sem /arquivos. O /api desse domínio vai para a API pelo
+# Traefik (em dev, pelo include abaixo).
+server {
+    listen 80;
+    server_name ${DOMINIO_ADMIN};
+
+    include /etc/nginx/extra/*.conf;
+
+    location / {
+        root /usr/share/nginx/admin;
+        add_header Cache-Control "no-cache" always;
+        try_files $uri $uri/ /index.html;
+    }
+
+    location /assets/ {
+        root /usr/share/nginx/admin;
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+    }
+}

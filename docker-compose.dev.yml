@@ -146,6 +146,9 @@ services:
     build: { context: ., dockerfile: infra/nginx/Dockerfile }
     environment:
       ARQUIVO_SEGREDO: dev-somente-local
+      # O navegador resolve *.localhost para a própria máquina: o admin abre em
+      # http://admin.localhost:8080 sem mexer no /etc/hosts.
+      DOMINIO_ADMIN: admin.localhost
     volumes:
       - fotos-vps:/data/fotos:ro
       - zips-vps:/data/zips:ro

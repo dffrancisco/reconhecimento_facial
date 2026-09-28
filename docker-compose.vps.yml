@@ -91,6 +91,7 @@ services:
     build: { context: ., dockerfile: infra/nginx/Dockerfile }
     environment:
       ARQUIVO_SEGREDO: ${ARQUIVO_SEGREDO}
+      DOMINIO_ADMIN: ${DOMINIO_ADMIN}
     volumes:
       - fotos:/data/fotos:ro
       - zips:/data/zips:ro
@@ -101,6 +102,12 @@ services:
       - traefik.http.routers.arquivos.rule=Host(`${DOMINIO_PARTICIPANTE}`)
       - traefik.http.routers.arquivos.entrypoints=websecure
       - traefik.http.routers.arquivos.tls=true
+      # O app do admin, no domínio dele. O /api desse domínio continua na API: a regra dela é
+      # mais longa, e o Traefik dá prioridade à regra mais longa.
+      - traefik.http.routers.admin.rule=Host(`${DOMINIO_ADMIN}`)
+      - traefik.http.routers.admin.entrypoints=websecure
+      - traefik.http.routers.admin.tls=true
+      - traefik.http.routers.admin.service=arquivos
       - traefik.http.services.arquivos.loadbalancer.server.port=80
     restart: unless-stopped
 
