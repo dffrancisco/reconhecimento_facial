@@ -94,6 +94,8 @@ services:
       # Vazio, o nginx recusa a configuração inteira e derruba também o app do participante:
       # melhor o compose parar aqui com a mensagem.
       DOMINIO_ADMIN: ${DOMINIO_ADMIN:?defina DOMINIO_ADMIN no .env.vps}
+      # Sem ela o nginx não sobe; aqui o Traefik manda /api direto para a API, e o bloco fica de reserva.
+      API_UPSTREAM: http://api:3000
     volumes:
       - fotos:/data/fotos:ro
       - zips:/data/zips:ro

@@ -32,9 +32,16 @@ server {
         alias /data/fotos/;
     }
 
-    # Em desenvolvimento o compose monta aqui o encaminhamento de /api (dev-api.conf); em
-    # produção a pasta fica vazia, porque o Traefik faz esse papel.
-    include /etc/nginx/extra/*.conf;
+    # /api vai para a API (variável API_UPSTREAM). No Coolify e em dev é este bloco que encaminha; na
+    # VPS com Traefik próprio (docker-compose.vps.yml) o Traefik manda /api direto para a API.
+    # O resolver adia a resolução do nome: o nginx sobe mesmo com a API parada.
+    location /api/ {
+        resolver 127.0.0.11 valid=10s;
+        set $api ${API_UPSTREAM};
+        proxy_pass $api;
+        # Até 3 selfies de 8 MB (o teto da API); o padrão do nginx é 1 MB.
+        client_max_body_size 30m;
+    }
 
     # O app é uma página só com rotas em hash (#/e/slug): qualquer caminho cai no index.
     # O index nunca fica em cache — é ele que aponta para os arquivos do build novo; os
@@ -56,13 +63,21 @@ server {
     }
 }
 
-# O admin no domínio dele: só o app, sem /arquivos. O /api desse domínio vai para a API pelo
-# Traefik (em dev, pelo include abaixo).
+# O admin no domínio dele: só o app e o /api, sem /arquivos.
 server {
     listen 80;
     server_name ${DOMINIO_ADMIN};
 
-    include /etc/nginx/extra/*.conf;
+    # /api vai para a API (variável API_UPSTREAM). No Coolify e em dev é este bloco que encaminha; na
+    # VPS com Traefik próprio (docker-compose.vps.yml) o Traefik manda /api direto para a API.
+    # O resolver adia a resolução do nome: o nginx sobe mesmo com a API parada.
+    location /api/ {
+        resolver 127.0.0.11 valid=10s;
+        set $api ${API_UPSTREAM};
+        proxy_pass $api;
+        # Até 3 selfies de 8 MB (o teto da API); o padrão do nginx é 1 MB.
+        client_max_body_size 30m;
+    }
 
     location / {
         root /usr/share/nginx/admin;

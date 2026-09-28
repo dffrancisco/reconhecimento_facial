@@ -1,0 +1,140 @@
+# VPS no Coolify (passo a passo em docs/deploy.md).
+#
+# Diferente do docker-compose.vps.yml, que sobe o próprio Traefik:
+# - o proxy do Coolify cuida das portas 80/443 e do certificado;
+# - as variáveis são preenchidas na tela do Coolify (as com ":?" são obrigatórias);
+# - os dois domínios (participante e admin) vão no serviço `arquivos`, e o nginx dele
+#   encaminha /api para a API. Assim o Coolify não precisa de regra por caminho.
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.1-pg16
+    environment:
+      POSTGRES_USER: fotos
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: fotos_vps
+    volumes:
+      - pg-vps:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fotos -d fotos_vps"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-vps:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # Roda as migrations e termina. O Coolify pode mostrá-lo como "Exited": é o esperado.
+  migrate:
+    build: { context: ., dockerfile: db/Dockerfile }
+    environment:
+      PAPEL: vps
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: fotos
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: fotos_vps
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+
+  api:
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    environment: &ambiente-api
+      PAPEL: vps
+      PORTA: "3000"
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: fotos
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: fotos_vps
+      REDIS_URL: redis://redis:6379
+      REDIS_PREFIXO: "fotos:vps:"
+      # A mesma chave vai no .env.estacao: é com ela que a estação sincroniza e publica.
+      ESTACAO_CHAVE: ${ESTACAO_CHAVE:?}
+      ARQUIVO_SEGREDO: ${ARQUIVO_SEGREDO:?}
+      OPERADOR_SEGREDO: ${OPERADOR_SEGREDO:?}
+      VISION_URL: http://vision:8000
+      RAIZ_MARCAS: /data/marcas
+      RAIZ_FOTOS: /data/fotos
+      RAIZ_SELFIES: /data/selfies
+      RAIZ_ZIPS: /data/zips
+      ARQUIVO_LINK_VALIDADE_S: ${ARQUIVO_LINK_VALIDADE_S:-3600}
+      BUSCA_LIMITE_IP: ${BUSCA_LIMITE_IP:-10}
+      # A Cloudflare fica na frente: o limite de buscas usa o IP que ela informa.
+      CONFIAR_CLOUDFLARE: ${CONFIAR_CLOUDFLARE:-true}
+      ENDERECO_PARTICIPANTE: https://${DOMINIO_PARTICIPANTE:?}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    volumes:
+      - selfies:/data/selfies
+      - fotos:/data/fotos
+      - marcas:/data/marcas
+      - zips:/data/zips
+    restart: unless-stopped
+
+  worker:
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    command: ["node", "dist/worker.js"]
+    # O worker não escuta HTTP: o healthcheck da imagem (GET /test) nunca passaria.
+    healthcheck: { disable: true }
+    environment: *ambiente-api
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    volumes:
+      - fotos:/data/fotos:ro
+      - zips:/data/zips
+    restart: unless-stopped
+
+  # Participante, admin, fotos assinadas e o /api dos dois domínios. No Coolify, os dois
+  # domínios ficam no campo "Domains" deste serviço.
+  arquivos:
+    build: { context: ., dockerfile: infra/nginx/Dockerfile }
+    environment:
+      ARQUIVO_SEGREDO: ${ARQUIVO_SEGREDO:?}
+      # Vazio, o nginx recusa a configuração inteira e derruba também o app do participante.
+      DOMINIO_ADMIN: ${DOMINIO_ADMIN:?}
+      API_UPSTREAM: http://api:3000
+    volumes:
+      - fotos:/data/fotos:ro
+      - zips:/data/zips:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/health"]
+      interval: 10s
+      retries: 5
+    restart: unless-stopped
+
+  vision:
+    build:
+      context: ./apps/vision-service
+      target: final
+    environment:
+      VISION_MODO: selfie-cpu
+      VISION_RAIZES: /data/selfies
+      SELFIE_CONCORRENCIA: ${SELFIE_CONCORRENCIA:-}
+    volumes:
+      - selfies:/data/selfies
+    restart: unless-stopped
+
+volumes:
+  pg-vps:
+  redis-vps:
+  # Selfies só existem durante a busca (spec §10): tmpfs, nunca em disco.
+  selfies:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: "size=256m,uid=1000"
+  fotos:
+  marcas:
+  zips:

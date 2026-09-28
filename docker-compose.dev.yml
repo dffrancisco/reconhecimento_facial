@@ -149,10 +149,11 @@ services:
       # O navegador resolve *.localhost para a própria máquina: o admin abre em
       # http://admin.localhost:8080 sem mexer no /etc/hosts.
       DOMINIO_ADMIN: admin.localhost
+      # O nginx encaminha /api para cá (em produção no Coolify, para a API do mesmo compose).
+      API_UPSTREAM: http://api-vps:3000
     volumes:
       - fotos-vps:/data/fotos:ro
       - zips-vps:/data/zips:ro
-      - ./infra/nginx/dev-api.conf:/etc/nginx/extra/api.conf:ro
     ports:
       - "127.0.0.1:8080:80"
     healthcheck:

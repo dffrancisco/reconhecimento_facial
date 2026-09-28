@@ -126,9 +126,9 @@ Servida como em produção (o build roda dentro da imagem do nginx, que também 
 docker compose -f docker-compose.dev.yml up -d --build arquivos   # http://localhost:8080
 ```
 
-Em produção o Traefik manda `/api` para a API; em desenvolvimento quem faz isso é o
-`infra/nginx/dev-api.conf`, que o compose de dev monta no nginx. Por isso `:8080` também
-serve a tela inteira, busca incluída.
+O próprio nginx encaminha `/api` para a API (variável `API_UPSTREAM`, no compose de dev
+apontando para `api-vps`). Por isso `:8080` também serve a tela inteira, busca incluída. No
+Coolify é o mesmo encaminhamento; o deploy está em [deploy.md](deploy.md).
 
 Para ter um evento com fotos, rode antes `npm run demo-evento` (ver acima) e abra o link
 que ele imprime: `http://localhost:8080/#/e/<slug>`, ou `/#/p/<chave_acesso>` se o evento
