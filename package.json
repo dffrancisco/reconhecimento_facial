@@ -8,6 +8,7 @@
         "apps/api",
         "apps/web-participante",
         "apps/web-fotografo",
+        "apps/web-admin",
         "db"
     ],
     "scripts": {
