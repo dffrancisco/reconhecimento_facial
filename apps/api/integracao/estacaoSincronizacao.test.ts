@@ -77,6 +77,21 @@ test("devolve operadores, eventos ativos, fotógrafos e vínculos", async () => 
     assert.ok(corpo.vinculos.some((v) => v.id_evento === evento.id_evento && v.id_fotografo === fotografo.id_fotografo));
 });
 
+test("evento desativado há pouco continua indo, para a estação saber; o desativado há mais de 7 dias não", async () => {
+    const eventoCtrl = new EventoCtrl(conexao);
+    const recente = await eventoCtrl.criarEvento({ nome: "Desativado agora", slug: `desativado-${Date.now()}`, tipo: "esportivo", data_fim: "2026-12-31" });
+    await eventoCtrl.editarEvento({ id_evento: recente.id_evento, ativo: false });
+    const antigo = await eventoCtrl.criarEvento({ nome: "Desativado há tempo", slug: `desativado-antigo-${Date.now()}`, tipo: "esportivo", data_fim: "2026-12-31" });
+    await conexao.executeParamCount("UPDATE evento SET ativo = 'N', updated_at = now() - interval '8 days' WHERE id_evento = ?", [antigo.id_evento]);
+
+    const res = resFalso();
+    await per({ body: { call: "getSincronizacao" }, headers: { authorization: config.estacaoChave } } as any, res as never, () => {}, Sincronizacao);
+
+    const eventos = (res.chamadas.body as { eventos: { id_evento: number; ativo: string }[] }).eventos;
+    assert.strictEqual(eventos.find((e) => e.id_evento === recente.id_evento)?.ativo, "N");
+    assert.ok(!eventos.some((e) => e.id_evento === antigo.id_evento));
+});
+
 test("recusa sem a chave da estação", async () => {
     const res = resFalso();
     await per({ body: { call: "getSincronizacao" }, headers: {} } as any, res as never, () => {}, Sincronizacao);

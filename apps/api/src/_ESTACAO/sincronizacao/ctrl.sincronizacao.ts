@@ -3,7 +3,7 @@ import path from "node:path";
 import ConexaoPostgres from "../../db/conexaoPostgres";
 import { config } from "../../services/config";
 import { PayloadSincronizacao } from "./i.sincronizacao";
-import { listarEventosAtivosSync, listarFotografosSync, listarOperadoresSync, listarVinculosSync } from "./sql.sincronizacao";
+import { listarEventosParaEstacao, listarFotografosSync, listarOperadoresSync, listarVinculosSync } from "./sql.sincronizacao";
 
 // A estação usa este mtime para saber que o PNG mudou e baixar de novo.
 async function mtimeDaMarca(idEvento: number): Promise<string | null> {
@@ -21,7 +21,7 @@ export default class SincronizacaoCtrl {
     async getSincronizacao(): Promise<PayloadSincronizacao> {
         const [operadores, eventosBrutos, fotografos] = await Promise.all([
             listarOperadoresSync(this.conexao),
-            listarEventosAtivosSync(this.conexao),
+            listarEventosParaEstacao(this.conexao),
             listarFotografosSync(this.conexao),
         ]);
 

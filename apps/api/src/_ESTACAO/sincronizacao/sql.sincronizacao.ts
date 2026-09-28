@@ -5,10 +5,13 @@ export async function listarOperadoresSync(conexao: ConexaoPostgres): Promise<Li
     return conexao.queryParam<LinhaOperadorSync>("SELECT id_operador, nome, login, senha_hash, deletado FROM operador");
 }
 
-export async function listarEventosAtivosSync(conexao: ConexaoPostgres): Promise<Omit<LinhaEventoSync, "marca_dagua_caminho">[]> {
+// Desativado há pouco também vai: só assim a estação sabe que ele foi desativado e para de
+// aceitar fotos. 7 dias cobre a estação ficar desligada entre um evento e outro.
+export async function listarEventosParaEstacao(conexao: ConexaoPostgres): Promise<Omit<LinhaEventoSync, "marca_dagua_caminho">[]> {
     return conexao.queryParam(
         `SELECT id_evento, nome, slug, tipo, privado, chave_acesso, chave_anfitriao, data_inicio, data_fim, ativo, config
-           FROM evento WHERE ativo = 'S' AND deletado = 'N'`
+           FROM evento
+          WHERE deletado = 'N' AND (ativo = 'S' OR updated_at > now() - interval '7 days')`
     );
 }
 
