@@ -109,6 +109,8 @@ Tudo em `_ADMIN`, com sessão do operador, exceto o login.
 - **Regras puras:** a validação de datas e da `config` e a montagem dos links ficam em funções puras, testadas sem banco.
 - **Configuração nova:** `ENDERECO_PARTICIPANTE` na API do VPS, opcional, com o mesmo formato de `ENDERECO_LAN` (URL sem barra no fim).
 - **Sincronização:** a estação recebe as mudanças de evento e de vínculo no ciclo que já existe, a cada 60 s.
+- **Evento desativado também sincroniza.** Hoje só vão para a estação os eventos ativos, então desativar um evento no admin nunca chegaria lá, e a estação seguiria aceitando fotos dele. Passam a ir também os desativados nos últimos 7 dias (`updated_at`), tempo que cobre a estação ficar desligada entre um evento e outro.
+- **Tamanhos:** nome do evento até 150 caracteres e endereço até 80, os limites das colunas. Passar disso vira mensagem, não erro 500.
 
 ## 5. Arquitetura da tela
 
