@@ -163,6 +163,14 @@ Servido como em produção pelo nginx do VPS: `docker compose -f docker-compose.
 - **Remover um fotógrafo** fecha o link dele em até 60 s. Adicionar de novo gera um link novo.
 - **Desativar o evento** também chega à estação em até 60 s (a sincronização leva os desativados nos últimos 7 dias).
 
+**Roteiro ponta a ponta** (compose completo no ar com `docker compose -f docker-compose.dev.yml --profile gpu up -d --build`, e `npm run dev` no `apps/web-admin` e no `apps/web-fotografo`):
+
+1. No admin (`http://localhost:5175`), crie um evento com as datas de hoje e adicione um fotógrafo (cadastre um novo, se preciso).
+2. Em até 60 s o evento aparece no painel da estação (`http://localhost:5174/#/estacao`, mesmo login) como o evento em andamento, com o link e o QR do fotógrafo.
+3. Abra o link do fotógrafo e solte uma pasta de JPEGs; no painel, as fotos passam pelas etapas até "Prontas".
+4. No admin, abra o link do participante (bloco "Links") e faça a busca pela selfie; as fotos em que você aparece voltam no resultado.
+5. Remova o fotógrafo no admin: em até 60 s o link dele passa a dizer "Este link não aceita mais fotos". Desative o evento: em até 60 s ele some do painel da estação.
+
 ## Upload do fotógrafo e painel da estação
 
 Em desenvolvimento, com recarregamento automático:

@@ -91,7 +91,9 @@ services:
     build: { context: ., dockerfile: infra/nginx/Dockerfile }
     environment:
       ARQUIVO_SEGREDO: ${ARQUIVO_SEGREDO}
-      DOMINIO_ADMIN: ${DOMINIO_ADMIN}
+      # Vazio, o nginx recusa a configuração inteira e derruba também o app do participante:
+      # melhor o compose parar aqui com a mensagem.
+      DOMINIO_ADMIN: ${DOMINIO_ADMIN:?defina DOMINIO_ADMIN no .env.vps}
     volumes:
       - fotos:/data/fotos:ro
       - zips:/data/zips:ro
