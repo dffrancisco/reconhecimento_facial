@@ -32,10 +32,15 @@ describe("filtrarArquivos", () => {
         expect(r).toEqual({ aceitos: [], recusados: [], ignorados: [] });
     });
 
-    test("JPEG acima de 60 MB é recusado com a mesma frase da estação", () => {
-        const grande = { size: 61 * 1024 * 1024, name: "gigante.jpg", lastModified: 1 } as File;
-        const r = filtrarArquivos([{ arquivo: grande, caminho: "gigante.jpg" }]);
-        expect(r.recusados).toEqual([{ nome: "gigante.jpg", mensagem: "Foto maior que 60 MB." }]);
+    test("JPEG acima de 100 MB é recusado com a mesma frase da estação; 100 MB exatos passam", () => {
+        const grande = { size: 100 * 1024 * 1024 + 1, name: "gigante.jpg", lastModified: 1 } as File;
+        const limite = { size: 100 * 1024 * 1024, name: "limite.jpg", lastModified: 1 } as File;
+        const r = filtrarArquivos([
+            { arquivo: grande, caminho: "gigante.jpg" },
+            { arquivo: limite, caminho: "limite.jpg" },
+        ]);
+        expect(r.recusados).toEqual([{ nome: "gigante.jpg", mensagem: "Foto maior que 100 MB." }]);
+        expect(r.aceitos.map((a) => a.arquivo.name)).toEqual(["limite.jpg"]);
     });
 });
 

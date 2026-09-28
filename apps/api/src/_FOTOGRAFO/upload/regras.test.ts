@@ -17,10 +17,11 @@ describe("validarInicio", () => {
             assert.strictEqual(validarInicio({ ...valido, nome_arquivo: nome }), "Não é JPEG — exporte em JPEG para enviar.");
     });
 
-    test("tamanho vazio, negativo, fracionado ou acima de 60 MB é recusado", () => {
+    test("tamanho vazio, negativo, fracionado ou acima de 100 MB é recusado", () => {
         for (const tamanho of [0, -1, 1.5, "1000", undefined]) assert.notStrictEqual(validarInicio({ ...valido, tamanho }), null);
-        assert.strictEqual(validarInicio({ ...valido, tamanho: TAMANHO_MAXIMO_FOTO + 1 }), "Foto maior que 60 MB.");
-        assert.strictEqual(validarInicio({ ...valido, tamanho: TAMANHO_MAXIMO_FOTO }), null);
+        assert.strictEqual(validarInicio({ ...valido, tamanho: 100 * 1024 * 1024 + 1 }), "Foto maior que 100 MB.");
+        assert.strictEqual(validarInicio({ ...valido, tamanho: 100 * 1024 * 1024 }), null);
+        assert.strictEqual(TAMANHO_MAXIMO_FOTO, 100 * 1024 * 1024);
     });
 
     test("hash que não é SHA-256 em hexadecimal é recusado", () => {

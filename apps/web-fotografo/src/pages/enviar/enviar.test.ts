@@ -93,7 +93,7 @@ describe("tela de envio", () => {
             erros: [{ nome_arquivo: "IMG_9.JPG", mensagem: "A estação não conseguiu ler esta foto (arquivo corrompido)." }],
         });
         const t = await abrir();
-        const gigante = { name: "gigante.jpg", size: 61 * 1024 * 1024, lastModified: 1 } as File;
+        const gigante = { name: "gigante.jpg", size: 101 * 1024 * 1024, lastModified: 1 } as File;
 
         await actions.receber([
             { arquivo: foto("IMG_1.CR3"), caminho: "IMG_1.CR3" },
@@ -102,7 +102,7 @@ describe("tela de envio", () => {
         await flushPromises();
 
         expect(t.text()).toContain("1 arquivo que não é JPEG foi ignorado");
-        expect(t.text()).toContain("Foto maior que 60 MB.");
+        expect(t.text()).toContain("Foto maior que 100 MB.");
         expect(t.text()).toContain("A estação não conseguiu ler esta foto (arquivo corrompido).");
         expect(contador(t, "erros")).toContain("2");
     });

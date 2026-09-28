@@ -44,7 +44,7 @@ describe("falhaDaChamada — erro do iniciarUpload vira tipo de falha da fila", 
         expect(falhaDaChamada(new ErroDaApi("Sem conexão com a estação.", undefined, undefined, true)).tipo).toBe("sem_conexao");
         expect(falhaDaChamada(new ErroDaApi("fechado", "evento_encerrado", 422)).tipo).toBe("estacao");
         // 422 sem código no início é a validação (extensão, tamanho): não adianta repetir.
-        expect(falhaDaChamada(new ErroDaApi("Foto maior que 60 MB.", undefined, 422)).tipo).toBe("recusada");
+        expect(falhaDaChamada(new ErroDaApi("Foto maior que 100 MB.", undefined, 422)).tipo).toBe("recusada");
         expect(falhaDaChamada(new ErroDaApi("erro", undefined, 500)).tipo).toBe("foto");
     });
 });

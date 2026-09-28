@@ -121,7 +121,7 @@ De cima para baixo:
 
 1. **Filtro.**
    - Extensão fora de `.jpg`/`.jpeg` vai direto para "com erro": "Não é JPEG — exporte em JPEG para enviar."
-   - Acima de 60 MB, também: "Foto maior que 60 MB."
+   - Acima de 100 MB, também: "Foto maior que 100 MB."
 2. **Impressão digital.**
    - É o SHA-256, calculado num Web Worker com `hash-wasm`, lendo o arquivo em pedaços. O `crypto.subtle` não existe em `http://<ip-da-LAN>`.
    - O resultado fica no IndexedDB, com chave `nome + tamanho + lastModified`: soltar a mesma pasta de novo não recalcula nada.
@@ -183,7 +183,7 @@ Público. Toda chamada leva `token` (o `token_upload`). Um vínculo é válido q
 
 `iniciarUpload` em detalhe:
 
-- **Valida as entradas:** hash com 64 hexadecimais, tamanho entre 1 byte e 60 MB, extensão JPEG.
+- **Valida as entradas:** hash com 64 hexadecimais, tamanho entre 1 byte e 100 MB, extensão JPEG.
 - **Retomada.** Existindo um `upload` `recebendo` do mesmo vínculo com o mesmo hash, devolve `continuar`, com `bytes_recebidos` igual ao tamanho real do arquivo parcial em disco (o disco manda, não a coluna).
 
 ### 5.2 Envio dos pedaços — `PUT /api/fotografo/upload/:id_upload`

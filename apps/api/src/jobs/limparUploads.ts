@@ -6,7 +6,7 @@ const ABANDONO_H = 24;
 const INTERVALO_MS = 60 * 60 * 1000;
 
 // Envio que parou no meio e nunca voltou (aba fechada de vez, fotógrafo que desistiu) deixa um
-// arquivo parcial de até 60 MB: sem limpeza, eles enchem o disco da estação ao longo do evento.
+// arquivo parcial de até 100 MB: sem limpeza, eles enchem o disco da estação ao longo do evento.
 export async function limparUploadsAbandonados(conexao: ConexaoPostgres): Promise<number> {
     const abandonados = await conexao.queryParam<{ id_upload: number }>(
         `SELECT id_upload FROM upload WHERE status = 'recebendo' AND updated_at < now() - (? || ' hours')::interval`,

@@ -1,6 +1,6 @@
 // Mesmos teto e frase da estação (_FOTOGRAFO/upload/regras.ts): o fotógrafo lê a mesma
 // explicação, venha a recusa daqui ou de lá.
-const TAMANHO_MAXIMO_FOTO = 60 * 1024 * 1024;
+const TAMANHO_MAXIMO_FOTO = 100 * 1024 * 1024;
 const EXTENSAO_JPEG = /\.jpe?g$/i;
 
 export interface ArquivoLido {
@@ -32,7 +32,7 @@ export function filtrarArquivos(lista: ArquivoLido[]): Filtrados {
             continue;
         }
         if (arquivo.size > TAMANHO_MAXIMO_FOTO) {
-            filtrados.recusados.push({ nome: arquivo.name, mensagem: "Foto maior que 60 MB." });
+            filtrados.recusados.push({ nome: arquivo.name, mensagem: "Foto maior que 100 MB." });
             continue;
         }
         filtrados.aceitos.push({ chave: chaveDoArquivo(arquivo, caminho), arquivo });
