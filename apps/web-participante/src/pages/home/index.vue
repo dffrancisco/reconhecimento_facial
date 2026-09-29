@@ -27,7 +27,7 @@ const periodo = computed(() => (state.evento ? periodoParaTela(state.evento.data
                 <p class="rotulo">Suas fotos do evento</p>
                 <h1 class="display mt-2">{{ state.evento.nome }}</h1>
                 <p class="mt-3 text-sm text-white/85">
-                    {{ periodo }}<template v-if="state.evento.total_fotos > 0"> · {{ state.evento.total_fotos }} fotos</template>
+                    {{ periodo }}<template v-if="state.evento.total_fotos > 0"> · {{ state.evento.total_fotos.toLocaleString("pt-BR") }} fotos</template>
                 </p>
             </section>
 

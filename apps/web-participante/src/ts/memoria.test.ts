@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { get } from "idb-keyval";
+import { del, get, set } from "idb-keyval";
 import { atualizarMemoria, guardarMemoria, limparMemoria, memoriaDoEvento, MemoriaDoEvento } from "./memoria";
 
 const banco = vi.hoisted(() => new Map<string, unknown>());
@@ -59,5 +59,25 @@ describe("memória do aparelho", () => {
     test("armazenamento indisponível devolve null sem lançar", async () => {
         vi.mocked(get).mockRejectedValueOnce(new DOMException("bloqueado"));
         await expect(memoriaDoEvento("/e/corrida-demo")).resolves.toBeNull();
+    });
+
+    // Armazenamento cheio ou bloqueado: escrever não pode derrubar o fluxo de busca.
+    test("guardar com escrita recusada não lança", async () => {
+        vi.mocked(set).mockRejectedValueOnce(new DOMException("cheio"));
+        await expect(guardarMemoria("/e/corrida-demo", memoria)).resolves.toBeUndefined();
+    });
+
+    test("atualizar com escrita recusada não lança", async () => {
+        await guardarMemoria("/e/corrida-demo", memoria);
+        vi.mocked(set).mockRejectedValueOnce(new DOMException("cheio"));
+        await expect(
+            atualizarMemoria("/e/corrida-demo", { validade_ate: "2099-01-01T00:00:00.000Z" }),
+        ).resolves.toBeUndefined();
+    });
+
+    test("limpar com exclusão recusada não lança", async () => {
+        await guardarMemoria("/e/corrida-demo", memoria);
+        vi.mocked(del).mockRejectedValueOnce(new DOMException("bloqueado"));
+        await expect(limparMemoria("/e/corrida-demo")).resolves.toBeUndefined();
     });
 });

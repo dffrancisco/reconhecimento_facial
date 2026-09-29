@@ -18,7 +18,7 @@ function porcentagem(valor: number | undefined): string {
             class="relative aspect-square overflow-hidden rounded-[13px] bg-white/15"
             @click="$emit('abrir', indice)"
         >
-            <img :src="foto.thumb" :alt="`Foto ${indice + 1} sua no evento`" class="h-full w-full object-cover" loading="lazy" />
+            <img :src="foto.thumb" :alt="`Foto ${indice + 1} do evento`" class="h-full w-full object-cover" loading="lazy" />
             <!-- Selo só na primeira: repetir em todas transformaria a grade numa planilha. -->
             <span
                 v-if="mostrarSelo && indice === 0 && foto.similaridade !== undefined"

@@ -59,7 +59,7 @@ const titulo = computed(() => (state.fotos.length === 1 ? "1 foto sua" : `${stat
             <button
                 v-if="actions.temCaminhoParaCamera()"
                 type="button"
-                class="mt-5 w-full text-center text-[11px] text-white/75"
+                class="mt-5 flex min-h-11 w-full items-center justify-center text-center text-[11px] text-white/75"
                 :disabled="state.rebuscando"
                 @click="actions.rebuscar()"
             >
@@ -71,7 +71,7 @@ const titulo = computed(() => (state.fotos.length === 1 ? "1 foto sua" : `${stat
                 <p class="mt-2 text-center text-[11px] text-white/85">{{ state.mensagemRebusca }}</p>
                 <button
                     type="button"
-                    class="mt-1 w-full text-center text-[11px] underline"
+                    class="mt-1 flex min-h-11 w-full items-center justify-center text-center text-[11px] underline"
                     @click="actions.voltarParaCamera()"
                 >
                     Tirar outra selfie

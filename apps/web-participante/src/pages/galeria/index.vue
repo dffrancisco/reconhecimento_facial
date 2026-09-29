@@ -25,7 +25,7 @@ nextTick(() => actions.init(String(rota.params.slug ?? ""), String(rota.params.c
                 :class="{ 'chip-ativo': d.dia === state.diaAtivo }"
                 @click="actions.trocarDia(d.dia)"
             >
-                {{ rotuloDoDia(d.dia) }} · {{ d.qtd }}
+                {{ rotuloDoDia(d.dia) }} · {{ d.qtd.toLocaleString("pt-BR") }}
             </button>
         </div>
 

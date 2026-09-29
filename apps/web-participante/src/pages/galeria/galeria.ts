@@ -24,7 +24,7 @@ export const state = reactive({
 
 // Arquivo do "toque de novo" do iPhone fora do state: File dentro do reactive vira Proxy,
 // e o navigator.share não aceita Proxy.
-let prontaParaEnvio: { indice: number; arquivo: File; url: string } | null = null;
+let prontaParaEnvio: { indice: number; arquivo: File } | null = null;
 
 export const actions = {
     async init(slug: string, chave: string): Promise<void> {
@@ -133,7 +133,7 @@ export const actions = {
                 arquivoPronto: pronta?.arquivo,
             });
             if (resultado.situacao === "toqueDeNovo") {
-                prontaParaEnvio = { indice, arquivo: resultado.arquivo, url: foto.web };
+                prontaParaEnvio = { indice, arquivo: resultado.arquivo };
                 state.compartilharPronto = indice;
             }
         } catch {

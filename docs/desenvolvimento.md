@@ -172,7 +172,7 @@ Com o compose de dev no ar, um evento ingerido e a tela do participante rodando 
 
 6. No resultado anterior, clique em "Buscar de novo":
    - Se a selfie está guardada na memória (o caso normal), o botão vira "Buscando fotos novas…" e reenvia automaticamente a mesma selfie, sem abrir tela nenhuma — o resultado recarrega com um token novo.
-   - Para trocar de foto, volte à home e clique em "Tirar outra selfie" ou "Buscar com outra selfie" (o botão muda conforme tenha aberto câmera antes).
+   - Se o servidor recusar a selfie guardada, aparece "Tirar outra selfie" ali mesmo no resultado, levando à câmera. Para trocar de selfie sem esperar a recusa, volte à home: o botão lá é "Buscar com outra selfie" quando há memória lembrada no aparelho (busca anterior) ou "Buscar minhas fotos" quando não há.
 
 7. De volta na galeria (ou resultado), abra uma foto e clique em "Salvar / Compartilhar":
    - No navegador desktop, abre um diálogo de download.
