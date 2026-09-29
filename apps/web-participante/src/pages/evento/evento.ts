@@ -2,9 +2,8 @@ import { reactive } from "vue";
 import { router } from "../../router";
 import { guardarEntrada } from "../../ts/entrada";
 import { dimensoesReduzidas, jpegDoCanvas, reduzirSelfie } from "../../ts/imagem";
-import { buscarPorSelfie } from "./services/evento.service";
+import { buscarPorSelfie, VERSAO_TERMO } from "../../ts/busca";
 
-export const VERSAO_TERMO = "v1";
 const LADO_MAIOR_ENVIO = 1280;
 
 export const state = reactive({

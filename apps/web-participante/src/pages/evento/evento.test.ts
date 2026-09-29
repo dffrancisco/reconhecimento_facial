@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { actions, state } from "./evento";
-import { buscarPorSelfie } from "./services/evento.service";
+import { buscarPorSelfie } from "../../ts/busca";
 import { ErroDaApi } from "../../ts/api";
 
-vi.mock("./services/evento.service", () => ({ buscarPorSelfie: vi.fn() }));
+vi.mock("../../ts/busca", () => ({ buscarPorSelfie: vi.fn(), VERSAO_TERMO: "v1" }));
 
 const irPara = vi.fn();
 vi.mock("../../router", () => ({ router: { push: (destino: unknown) => irPara(destino) } }));
