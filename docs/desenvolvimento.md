@@ -143,6 +143,40 @@ A selfie precisa ter um rosto só: foto em grupo volta com "Encontramos mais de 
 E a API limita as buscas por IP (10 a cada 10 minutos, `BUSCA_LIMITE_IP`); pelo nginx de
 dev todo pedido chega com o IP do container, então testes seguidos esbarram nesse limite.
 
+**Roteiro ponta a ponta do participante (fotos em dois dias, memória, botão único):**
+
+Com o compose de dev no ar, um evento ingerido e a tela do participante rodando (`npm run dev -w apps/web-participante`):
+
+1. Espalhe as fotos em dois dias para testar a galeria com abas:
+   ```sql
+   -- Neste psql do compose, a metade mais antiga das fotos vai para a véspera:
+   UPDATE foto SET capturada_em = capturada_em - interval '1 day'
+    WHERE id_foto IN (SELECT id_foto FROM foto WHERE id_evento = 1 ORDER BY id_foto LIMIT (SELECT count(*) / 2 FROM foto WHERE id_evento = 1));
+   ```
+
+2. Abra a home do evento em `http://localhost:8080/#/e/<slug>`: mostra o nome, o período (dois dias), e os botões "Ver todas as fotos" e "Buscar minhas fotos".
+
+3. Clique em "Ver todas as fotos":
+   - A galeria abre com dois chips no topo (um para cada dia, com contagem).
+   - Trocar de dia zera a posição da grade.
+   - Role para baixo e clique em "Ver mais fotos" para paginar.
+   - Clique numa foto para abrir em tela cheia: navegue com swipe ou setas e veja o botão único "Salvar / Compartilhar" na barra inferior.
+
+4. Volte à home ("Voltar") e clique em "Buscar minhas fotos":
+   - Tire uma selfie (ou escolha da galeria), aperte "Buscar".
+   - Veja o resultado com as fotos em que você aparece.
+
+5. Feche a aba do navegador e reabra `http://localhost:8080/#/e/<slug>`:
+   - A home agora mostra "Minhas fotos (N)" em vez de "Buscar minhas fotos" — a selfie foi lembrada no dispositivo.
+   - Clique em "Minhas fotos (N)" para voltar ao resultado da última busca.
+
+6. No resultado anterior, clique em "Buscar de novo":
+   - A busca abre sem câmera (só permite escolher da galeria ou digitar arquivo) — útil para tentar com outra foto.
+
+7. De volta na galeria (ou resultado), abra uma foto e clique em "Salvar / Compartilhar":
+   - No navegador desktop, abre um diálogo de download.
+   - No celular (especialmente iPhone), abre a folha do sistema nativa (share sheet), com opções como "Salvar imagem" e compartilhamento social.
+
 ## Admin
 
 Em desenvolvimento, com recarregamento automático:
