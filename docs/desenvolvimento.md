@@ -160,7 +160,7 @@ Com o compose de dev no ar, um evento ingerido e a tela do participante rodando 
    - A galeria abre com dois chips no topo (um para cada dia, com contagem).
    - Trocar de dia zera a posição da grade.
    - Role para baixo e clique em "Ver mais fotos" para paginar.
-   - Clique numa foto para abrir em tela cheia: navegue com swipe ou setas e veja o botão único "Salvar / Compartilhar" na barra inferior.
+   - Clique numa foto para abrir em tela cheia: navegue com swipe horizontal e veja o botão único "Salvar / Compartilhar" na barra inferior.
 
 4. Volte à home ("Voltar") e clique em "Buscar minhas fotos":
    - Tire uma selfie (ou escolha da galeria), aperte "Buscar".
@@ -171,7 +171,8 @@ Com o compose de dev no ar, um evento ingerido e a tela do participante rodando 
    - Clique em "Minhas fotos (N)" para voltar ao resultado da última busca.
 
 6. No resultado anterior, clique em "Buscar de novo":
-   - A busca abre sem câmera (só permite escolher da galeria ou digitar arquivo) — útil para tentar com outra foto.
+   - Se a selfie está guardada na memória (o caso normal), o botão vira "Buscando fotos novas…" e reenvia automaticamente a mesma selfie, sem abrir tela nenhuma — o resultado recarrega com um token novo.
+   - Para trocar de foto, volte à home e clique em "Tirar outra selfie" ou "Buscar com outra selfie" (o botão muda conforme tenha aberto câmera antes).
 
 7. De volta na galeria (ou resultado), abra uma foto e clique em "Salvar / Compartilhar":
    - No navegador desktop, abre um diálogo de download.
