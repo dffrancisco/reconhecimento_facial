@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { actions, state } from "./evento";
 import { buscarPorSelfie } from "../../ts/busca";
+import { guardarMemoria } from "../../ts/memoria";
 import { ErroDaApi } from "../../ts/api";
 
 vi.mock("../../ts/busca", () => ({ buscarPorSelfie: vi.fn(), VERSAO_TERMO: "v1" }));
+vi.mock("../../ts/memoria", () => ({ guardarMemoria: vi.fn() }));
 
 const irPara = vi.fn();
 vi.mock("../../router", () => ({ router: { push: (destino: unknown) => irPara(destino) } }));
@@ -155,6 +157,21 @@ describe("envio da selfie", () => {
 
         expect(localStorage.getItem("entrada:tokP")).toBe("/p/chave-privada");
         localStorage.clear();
+    });
+
+    test("busca com fotos guarda a memória do aparelho", async () => {
+        vi.mocked(buscarPorSelfie).mockResolvedValue({ token: "tok9", status: "liberada", qtd_fotos: 3, previas: [] });
+        state.slug = "corrida-demo";
+        state.chaveAcesso = "";
+        state.consentiu = true;
+        state.selfies = [new File(["selfie"], "selfie.jpg", { type: "image/jpeg" })];
+
+        await actions.buscar();
+
+        expect(guardarMemoria).toHaveBeenCalledWith(
+            "/e/corrida-demo",
+            expect.objectContaining({ token: "tok9", qtd_fotos: 3, validade_ate: null })
+        );
     });
 
     test("mostra a busca em curso enquanto espera", async () => {

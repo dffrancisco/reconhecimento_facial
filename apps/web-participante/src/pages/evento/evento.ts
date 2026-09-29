@@ -1,6 +1,7 @@
 import { reactive } from "vue";
 import { router } from "../../router";
 import { guardarEntrada } from "../../ts/entrada";
+import { guardarMemoria } from "../../ts/memoria";
 import { dimensoesReduzidas, jpegDoCanvas, reduzirSelfie } from "../../ts/imagem";
 import { buscarPorSelfie, VERSAO_TERMO } from "../../ts/busca";
 
@@ -109,7 +110,16 @@ export const actions = {
             }
 
             actions.encerrarCamera();
-            guardarEntrada(resposta.token, state.chaveAcesso ? `/p/${state.chaveAcesso}` : `/e/${state.slug}`);
+            const caminho = state.chaveAcesso ? `/p/${state.chaveAcesso}` : `/e/${state.slug}`;
+            guardarEntrada(resposta.token, caminho);
+            // A validade só vem no resultado: fica nula até a tela de resultado carimbá-la.
+            await guardarMemoria(caminho, {
+                token: resposta.token,
+                qtd_fotos: resposta.qtd_fotos,
+                validade_ate: null,
+                selfie: state.selfies[0] ?? null,
+                criado_em: new Date().toISOString(),
+            });
             // Mesmo com zero fotos a busca é `liberada`: a tela de resultado é que mostra
             // o "ainda não achamos você" (spec da plataforma §8).
             router.push({ name: "resultado", params: { token: resposta.token } });

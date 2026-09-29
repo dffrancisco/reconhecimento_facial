@@ -60,9 +60,20 @@ const titulo = computed(() => (state.fotos.length === 1 ? "1 foto sua" : `${stat
                 v-if="actions.temCaminhoParaCamera()"
                 type="button"
                 class="mt-5 w-full text-center text-[11px] text-white/75"
+                :disabled="state.rebuscando"
+                @click="actions.rebuscar()"
+            >
+                {{ state.rebuscando ? "Buscando fotos novas…" : "Chegaram fotos novas? Buscar de novo" }}
+            </button>
+
+            <!-- Rebusca recusada (selfie guardada não serviu): a saída é a câmera (spec §7). -->
+            <button
+                v-if="state.mensagem && !state.rebuscando && actions.temCaminhoParaCamera()"
+                type="button"
+                class="mt-2 w-full text-center text-[11px] underline"
                 @click="actions.voltarParaCamera()"
             >
-                Chegaram fotos novas? Buscar de novo
+                Tirar outra selfie
             </button>
 
             <FaixaPatrocinadores :patrocinadores="[]" />

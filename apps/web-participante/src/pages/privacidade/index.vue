@@ -22,6 +22,11 @@ const temDeOndeVoltar = Boolean(router.options.history.state.back);
                 <b>A selfie.</b> É apagada assim que a busca termina. O que calculamos dela para comparar também não é guardado.
             </p>
             <p class="mt-3">
+                <b>Selfie lembrada no aparelho.</b> Para você não precisar tirar outra selfie ao voltar, uma cópia reduzida
+                dela pode ficar guardada <b>somente no seu aparelho</b>. Ela nunca volta para nossos servidores; tirar uma
+                nova selfie substitui a anterior, e limpar os dados do navegador a apaga.
+            </p>
+            <p class="mt-3">
                 <b>O que guardamos.</b> Para a busca funcionar, guardamos as fotos e os rostos que aparecem nas fotos do evento.
                 Da sua busca, guardamos quais fotos foram encontradas, para mostrar de novo quando você voltar pelo link.
             </p>

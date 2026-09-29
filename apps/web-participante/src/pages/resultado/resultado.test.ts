@@ -3,6 +3,9 @@ import { actions, state, validadeParaTela } from "./resultado";
 import { getResultado, gerarLinks, pedirZip, situacaoZip } from "./services/resultado.service";
 import { baixarArquivo } from "../../ts/arquivos";
 import { ErroDaApi } from "../../ts/api";
+import { entradaDaBusca } from "../../ts/entrada";
+import { atualizarMemoria, limparMemoria, memoriaDoEvento } from "../../ts/memoria";
+import { buscarPorSelfie } from "../../ts/busca";
 
 vi.mock("./services/resultado.service", () => ({
     getResultado: vi.fn(),
@@ -13,12 +16,28 @@ vi.mock("./services/resultado.service", () => ({
 
 vi.mock("../../ts/arquivos", () => ({ baixarArquivo: vi.fn() }));
 
+vi.mock("../../ts/memoria", () => ({
+    memoriaDoEvento: vi.fn(),
+    atualizarMemoria: vi.fn(),
+    limparMemoria: vi.fn(),
+    guardarMemoria: vi.fn(),
+}));
+vi.mock("../../ts/busca", () => ({ buscarPorSelfie: vi.fn(), VERSAO_TERMO: "v1" }));
+vi.mock("../../ts/entrada", () => ({ entradaDaBusca: vi.fn(), guardarEntrada: vi.fn() }));
+
 const roteador = vi.hoisted(() => ({
     push: vi.fn(),
-    back: vi.fn(),
-    options: { history: { state: { back: null as string | null } } },
+    replace: vi.fn(),
 }));
 vi.mock("../../router", () => ({ router: roteador }));
+
+const memoriaComSelfie = {
+    token: "tok123",
+    qtd_fotos: 2,
+    validade_ate: null,
+    selfie: new Blob(["selfie"], { type: "image/jpeg" }),
+    criado_em: "2026-09-29T10:00:00.000Z",
+};
 
 const resultadoCheio = {
     evento: { nome: "Corrida da Serra", slug: "corrida-da-serra" },
@@ -41,7 +60,9 @@ describe("tela de resultado", () => {
         state.urlsZip = [];
         state.slug = "";
         state.aberta = null;
-        roteador.options.history.state.back = null;
+        // Estado limpo por padrão: cada teste que precisa de uma entrada ou memória as declara.
+        vi.mocked(entradaDaBusca).mockReturnValue(null);
+        vi.mocked(memoriaDoEvento).mockResolvedValue(null);
     });
 
     test("carrega as fotos da busca", async () => {
@@ -70,6 +91,29 @@ describe("tela de resultado", () => {
 
         expect(state.mensagem).toContain("prazo");
         expect(state.fotos).toHaveLength(0);
+    });
+
+    test("resultado carregado carimba a validade na memória do mesmo token", async () => {
+        vi.mocked(getResultado).mockResolvedValue(resultadoCheio);
+        vi.mocked(entradaDaBusca).mockReturnValue("/e/corrida-da-serra");
+        vi.mocked(memoriaDoEvento).mockResolvedValue({ ...memoriaComSelfie, token: "tok123" });
+
+        await actions.init("tok123");
+
+        expect(atualizarMemoria).toHaveBeenCalledWith(
+            "/e/corrida-da-serra",
+            expect.objectContaining({ validade_ate: resultadoCheio.validade_ate, qtd_fotos: 2 })
+        );
+    });
+
+    test("token recusado pela API limpa a memória daquele token", async () => {
+        vi.mocked(getResultado).mockRejectedValue(new ErroDaApi("O prazo para baixar estas fotos venceu. Faça a busca de novo."));
+        vi.mocked(entradaDaBusca).mockReturnValue("/e/corrida-da-serra");
+        vi.mocked(memoriaDoEvento).mockResolvedValue({ ...memoriaComSelfie, token: "tok123" });
+
+        await actions.init("tok123");
+
+        expect(limparMemoria).toHaveBeenCalledWith("/e/corrida-da-serra");
     });
 
     test("pedir o ZIP marca como montando e depois pronto", async () => {
@@ -211,44 +255,60 @@ describe("tela de resultado", () => {
         expect(state.aberta).toBe(1);
     });
 
-    test("buscar de novo volta pela história quando a pessoa veio da câmera", () => {
-        roteador.options.history.state.back = "/e/corrida-da-serra";
-
-        actions.voltarParaCamera();
-
-        expect(roteador.back).toHaveBeenCalled();
-    });
-
     test("aberto direto pelo link, buscar de novo vai para a câmera do evento", () => {
         // O link do resultado é reaberto dias depois: não há tela anterior para onde voltar.
         state.slug = "corrida-da-serra";
 
         actions.voltarParaCamera();
 
-        expect(roteador.push).toHaveBeenCalledWith({ name: "evento", params: { slug: "corrida-da-serra" } });
+        expect(roteador.push).toHaveBeenCalledWith("/e/corrida-da-serra/selfie");
     });
 
     test("link reaberto de evento privado volta pela entrada guardada, não pelo slug", () => {
         // Pelo slug a API recusa evento privado: mandar para /e/<slug> seria uma armadilha.
-        localStorage.setItem("entrada:tok123", "/p/chave-privada");
+        vi.mocked(entradaDaBusca).mockReturnValue("/p/chave-privada");
         state.token = "tok123";
         state.slug = "corrida-privada";
 
         actions.voltarParaCamera();
 
-        expect(roteador.push).toHaveBeenCalledWith("/p/chave-privada");
-        localStorage.clear();
+        expect(roteador.push).toHaveBeenCalledWith("/p/chave-privada/selfie");
     });
 
     test("prazo vencido num link reaberto ainda oferece a volta para a câmera", async () => {
         // A API recusa antes de dizer o evento; a entrada guardada na busca é o que sobra.
-        localStorage.setItem("entrada:tokVelho", "/e/corrida-da-serra");
+        vi.mocked(entradaDaBusca).mockReturnValue("/e/corrida-da-serra");
         vi.mocked(getResultado).mockRejectedValue(new ErroDaApi("O prazo para baixar estas fotos venceu. Faça a busca de novo."));
 
         await actions.init("tokVelho");
 
         expect(actions.temCaminhoParaCamera()).toBe(true);
-        localStorage.clear();
+    });
+
+    test("rebuscar reenvia a selfie guardada sem abrir a câmera", async () => {
+        vi.mocked(entradaDaBusca).mockReturnValue("/e/corrida-da-serra");
+        vi.mocked(memoriaDoEvento).mockResolvedValue(memoriaComSelfie);
+        vi.mocked(buscarPorSelfie).mockResolvedValue({ token: "tokNovo", status: "liberada", qtd_fotos: 5, previas: [] });
+        vi.mocked(getResultado).mockResolvedValue(resultadoCheio);
+        state.token = "tok123";
+
+        await actions.rebuscar();
+
+        expect(buscarPorSelfie).toHaveBeenCalledWith(
+            expect.objectContaining({ slug: "corrida-da-serra", tokenOrigem: "tok123", selfies: [expect.any(File)] })
+        );
+        expect(roteador.replace).toHaveBeenCalledWith({ name: "resultado", params: { token: "tokNovo" } });
+    });
+
+    test("rebuscar sem selfie guardada cai na câmera", async () => {
+        vi.mocked(entradaDaBusca).mockReturnValue("/e/corrida-da-serra");
+        vi.mocked(memoriaDoEvento).mockResolvedValue(null);
+        state.token = "tok123";
+
+        await actions.rebuscar();
+
+        expect(buscarPorSelfie).not.toHaveBeenCalled();
+        expect(roteador.push).toHaveBeenCalledWith("/e/corrida-da-serra/selfie");
     });
 
     test("um token que falha não herda o evento do resultado anterior", async () => {

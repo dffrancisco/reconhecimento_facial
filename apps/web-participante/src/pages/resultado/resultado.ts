@@ -1,7 +1,10 @@
 import { reactive } from "vue";
 import { router } from "../../router";
+import { ErroDaApi } from "../../ts/api";
 import { baixarArquivo } from "../../ts/arquivos";
-import { entradaDaBusca } from "../../ts/entrada";
+import { buscarPorSelfie, VERSAO_TERMO } from "../../ts/busca";
+import { entradaDaBusca, guardarEntrada } from "../../ts/entrada";
+import { atualizarMemoria, guardarMemoria, limparMemoria, memoriaDoEvento } from "../../ts/memoria";
 import { esperarPartes } from "../../ts/zip";
 import type { FotoDoResultado } from "./interfaces";
 import { getResultado, gerarLinks, pedirZip, situacaoZip } from "./services/resultado.service";
@@ -21,6 +24,7 @@ export const state = reactive({
     zip: "nenhum" as "nenhum" | "montando" | "pronto",
     urlsZip: [] as string[],
     compartilharPronto: null as number | null,
+    rebuscando: false,
 });
 
 // Foto já baixada cujo menu de compartilhar o navegador recusou. Fica fora do state: um File
@@ -37,6 +41,12 @@ function foiCancelado(erro: unknown): boolean {
 
 function recusadoPorFaltaDeToque(erro: unknown): boolean {
     return erro instanceof DOMException && erro.name === "NotAllowedError";
+}
+
+// O caminho de entrada é o elo com a memória: vem da busca guardada e, sem ela, do slug
+// público que o resultado conhece.
+function caminhoDoEvento(): string | null {
+    return entradaDaBusca(state.token) ?? (state.slug ? `/e/${state.slug}` : null);
 }
 
 export const actions = {
@@ -60,9 +70,23 @@ export const actions = {
             state.slug = resposta.evento.slug;
             state.fotos = resposta.fotos;
             state.validadeAte = resposta.validade_ate;
+
+            const caminho = caminhoDoEvento();
+            if (caminho) {
+                const memoria = await memoriaDoEvento(caminho);
+                if (memoria?.token === token)
+                    await atualizarMemoria(caminho, { validade_ate: resposta.validade_ate, qtd_fotos: resposta.fotos.length });
+            }
         } catch (erro) {
             state.fotos = [];
             state.mensagem = erro instanceof Error ? erro.message : "Não conseguimos abrir suas fotos.";
+
+            const caminho = caminhoDoEvento();
+            if (caminho && erro instanceof ErroDaApi) {
+                const memoria = await memoriaDoEvento(caminho);
+                // Só a memória deste token: o servidor recusou, o atalho local morreu com ele.
+                if (memoria?.token === token) await limparMemoria(caminho);
+            }
         } finally {
             state.carregando = false;
         }
@@ -176,17 +200,55 @@ export const actions = {
         }
     },
 
-    // Quem veio da câmera volta para ela. Quem reabriu o link dias depois não tem tela
-    // anterior: vai pela entrada guardada na busca (vale para evento privado) e, sem ela,
-    // pela câmera do evento pelo slug.
+    // "Buscar de novo" sem câmera: reenvia a selfie que ficou no aparelho. Sem selfie
+    // guardada (aba anônima, memória limpa), o caminho antigo — a câmera — continua valendo.
+    async rebuscar(): Promise<void> {
+        const caminho = caminhoDoEvento();
+        const memoria = caminho ? await memoriaDoEvento(caminho) : null;
+        if (!caminho || !memoria?.selfie) {
+            actions.voltarParaCamera();
+            return;
+        }
+
+        state.rebuscando = true;
+        state.mensagem = "";
+        try {
+            const resposta = await buscarPorSelfie({
+                slug: caminho.startsWith("/e/") ? caminho.slice(3) : undefined,
+                chaveAcesso: caminho.startsWith("/p/") ? caminho.slice(3) : undefined,
+                versaoTermo: VERSAO_TERMO,
+                selfies: [new File([memoria.selfie], "selfie.jpg", { type: "image/jpeg" })],
+                tokenOrigem: state.token,
+            });
+            if (resposta.status === "aguardando") {
+                state.mensagem = "Este evento pede uma confirmação que ainda não está disponível por aqui. Avise a organização.";
+                return;
+            }
+            guardarEntrada(resposta.token, caminho);
+            await guardarMemoria(caminho, {
+                ...memoria,
+                token: resposta.token,
+                qtd_fotos: resposta.qtd_fotos,
+                validade_ate: null,
+                criado_em: new Date().toISOString(),
+            });
+            router.replace({ name: "resultado", params: { token: resposta.token } });
+            await actions.init(resposta.token);
+        } catch (erro) {
+            state.mensagem = erro instanceof Error ? erro.message : "Não conseguimos buscar de novo. Tente outra selfie.";
+        } finally {
+            state.rebuscando = false;
+        }
+    },
+
+    // A home agora ocupa /e/<slug>: a câmera é sempre <caminho>/selfie. O history.back
+    // saiu porque o "voltar" pode ser a home, não a câmera.
     temCaminhoParaCamera(): boolean {
-        return Boolean(router.options.history.state.back) || Boolean(entradaDaBusca(state.token)) || Boolean(state.slug);
+        return Boolean(caminhoDoEvento());
     },
 
     voltarParaCamera(): void {
-        const entrada = entradaDaBusca(state.token);
-        if (router.options.history.state.back) router.back();
-        else if (entrada) router.push(entrada);
-        else if (state.slug) router.push({ name: "evento", params: { slug: state.slug } });
+        const caminho = caminhoDoEvento();
+        if (caminho) router.push(`${caminho}/selfie`);
     },
 };
