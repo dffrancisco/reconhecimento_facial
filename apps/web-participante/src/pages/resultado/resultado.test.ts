@@ -56,6 +56,7 @@ describe("tela de resultado", () => {
         vi.unstubAllGlobals();
         state.fotos = [];
         state.mensagem = "";
+        state.mensagemRebusca = "";
         state.zip = "nenhum";
         state.urlsZip = [];
         state.slug = "";
@@ -106,6 +107,17 @@ describe("tela de resultado", () => {
         );
     });
 
+    test("resultado carregado não carimba a memória de outro token (guard)", async () => {
+        // A memória guardada é de outra busca: carimbar aqui pisaria num atalho que não é este.
+        vi.mocked(getResultado).mockResolvedValue(resultadoCheio);
+        vi.mocked(entradaDaBusca).mockReturnValue("/e/corrida-da-serra");
+        vi.mocked(memoriaDoEvento).mockResolvedValue({ ...memoriaComSelfie, token: "tok-de-outra-busca" });
+
+        await actions.init("tok123");
+
+        expect(atualizarMemoria).not.toHaveBeenCalled();
+    });
+
     test("token recusado pela API limpa a memória daquele token", async () => {
         vi.mocked(getResultado).mockRejectedValue(new ErroDaApi("O prazo para baixar estas fotos venceu. Faça a busca de novo."));
         vi.mocked(entradaDaBusca).mockReturnValue("/e/corrida-da-serra");
@@ -114,6 +126,17 @@ describe("tela de resultado", () => {
         await actions.init("tok123");
 
         expect(limparMemoria).toHaveBeenCalledWith("/e/corrida-da-serra");
+    });
+
+    test("token recusado pela API não limpa a memória de outro token (guard)", async () => {
+        // A memória guardada é de outra busca: o token recusado não é o dono dela.
+        vi.mocked(getResultado).mockRejectedValue(new ErroDaApi("O prazo para baixar estas fotos venceu. Faça a busca de novo."));
+        vi.mocked(entradaDaBusca).mockReturnValue("/e/corrida-da-serra");
+        vi.mocked(memoriaDoEvento).mockResolvedValue({ ...memoriaComSelfie, token: "tok-de-outra-busca" });
+
+        await actions.init("tok123");
+
+        expect(limparMemoria).not.toHaveBeenCalled();
     });
 
     test("pedir o ZIP marca como montando e depois pronto", async () => {
@@ -309,6 +332,22 @@ describe("tela de resultado", () => {
 
         expect(buscarPorSelfie).not.toHaveBeenCalled();
         expect(roteador.push).toHaveBeenCalledWith("/e/corrida-da-serra/selfie");
+    });
+
+    test("rebuscar que falha avisa perto do botão, sem acender o botão do ZIP", async () => {
+        // mensagemRebusca é separada de state.mensagem: uma falha aqui não pode acender o
+        // "Tirar outra selfie" por causa de um erro do ZIP, nem o contrário.
+        vi.mocked(entradaDaBusca).mockReturnValue("/e/corrida-da-serra");
+        vi.mocked(memoriaDoEvento).mockResolvedValue(memoriaComSelfie);
+        vi.mocked(buscarPorSelfie).mockRejectedValue(new ErroDaApi("Não conseguimos achar um rosto na selfie guardada."));
+        state.token = "tok123";
+        state.mensagem = "";
+
+        await actions.rebuscar();
+
+        expect(state.mensagemRebusca).toContain("rosto");
+        expect(state.mensagem).toBe("");
+        expect(state.rebuscando).toBe(false);
     });
 
     test("um token que falha não herda o evento do resultado anterior", async () => {

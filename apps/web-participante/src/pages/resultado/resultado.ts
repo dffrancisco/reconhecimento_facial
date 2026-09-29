@@ -25,6 +25,9 @@ export const state = reactive({
     urlsZip: [] as string[],
     compartilharPronto: null as number | null,
     rebuscando: false,
+    // Separada de `mensagem` (que é do ZIP e de outras ações): sem isso, uma falha ao montar
+    // o ZIP também acendia o botão "Tirar outra selfie", que só faz sentido para a rebusca.
+    mensagemRebusca: "",
 });
 
 // Foto já baixada cujo menu de compartilhar o navegador recusou. Fica fora do state: um File
@@ -54,6 +57,7 @@ export const actions = {
         state.token = token;
         state.carregando = true;
         state.mensagem = "";
+        state.mensagemRebusca = "";
         state.evento = "";
         state.slug = "";
         state.aberta = null;
@@ -211,7 +215,7 @@ export const actions = {
         }
 
         state.rebuscando = true;
-        state.mensagem = "";
+        state.mensagemRebusca = "";
         try {
             const resposta = await buscarPorSelfie({
                 slug: caminho.startsWith("/e/") ? caminho.slice(3) : undefined,
@@ -221,7 +225,7 @@ export const actions = {
                 tokenOrigem: state.token,
             });
             if (resposta.status === "aguardando") {
-                state.mensagem = "Este evento pede uma confirmação que ainda não está disponível por aqui. Avise a organização.";
+                state.mensagemRebusca = "Este evento pede uma confirmação que ainda não está disponível por aqui. Avise a organização.";
                 return;
             }
             guardarEntrada(resposta.token, caminho);
@@ -235,7 +239,7 @@ export const actions = {
             router.replace({ name: "resultado", params: { token: resposta.token } });
             await actions.init(resposta.token);
         } catch (erro) {
-            state.mensagem = erro instanceof Error ? erro.message : "Não conseguimos buscar de novo. Tente outra selfie.";
+            state.mensagemRebusca = erro instanceof Error ? erro.message : "Não conseguimos buscar de novo. Tente outra selfie.";
         } finally {
             state.rebuscando = false;
         }

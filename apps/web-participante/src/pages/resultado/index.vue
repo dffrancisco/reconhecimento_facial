@@ -67,14 +67,16 @@ const titulo = computed(() => (state.fotos.length === 1 ? "1 foto sua" : `${stat
             </button>
 
             <!-- Rebusca recusada (selfie guardada não serviu): a saída é a câmera (spec §7). -->
-            <button
-                v-if="state.mensagem && !state.rebuscando && actions.temCaminhoParaCamera()"
-                type="button"
-                class="mt-2 w-full text-center text-[11px] underline"
-                @click="actions.voltarParaCamera()"
-            >
-                Tirar outra selfie
-            </button>
+            <template v-if="state.mensagemRebusca && !state.rebuscando && actions.temCaminhoParaCamera()">
+                <p class="mt-2 text-center text-[11px] text-white/85">{{ state.mensagemRebusca }}</p>
+                <button
+                    type="button"
+                    class="mt-1 w-full text-center text-[11px] underline"
+                    @click="actions.voltarParaCamera()"
+                >
+                    Tirar outra selfie
+                </button>
+            </template>
 
             <FaixaPatrocinadores :patrocinadores="[]" />
         </template>
