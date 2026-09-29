@@ -73,4 +73,51 @@
         color: #fff;
         width: 100%;
     }
+
+    /* Telas onde a foto manda (galeria, resultado, foto aberta): fundo sólido escuro,
+       o gradiente largada fica como marca na home e na câmera (spec das melhorias §6). */
+    .tela-foto {
+        background: var(--largada-foto);
+        border-top: env(safe-area-inset-top) solid transparent;
+        border-bottom: env(safe-area-inset-bottom) solid transparent;
+        color: #fff;
+        min-height: 100dvh;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+
+    /* Nome do evento na home: o "número de peito" da identidade. */
+    .display {
+        font-family: "Bricolage Grotesque Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+        font-size: clamp(2rem, 9vw, 2.9rem);
+        font-weight: 800;
+        line-height: 1.02;
+        letter-spacing: -0.03em;
+        overflow-wrap: anywhere;
+    }
+
+    /* Títulos de tela ("N fotos suas", "Todas as fotos"): a mesma família, no tamanho do .titulo. */
+    .titulo-tela {
+        font-family: "Bricolage Grotesque Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+
+    .chip {
+        border-radius: 999px;
+        padding: 0.55rem 0.95rem;
+        font-size: 0.75rem;
+        font-weight: 700;
+        background: rgb(255 255 255 / 0.14);
+        color: #fff;
+    }
+
+    .chip-ativo {
+        background: #fff;
+        color: var(--largada-fim);
+    }
+}
+
+/* Os pontinhos do "Procurando você" são a única animação contínua do app. */
+@media (prefers-reduced-motion: reduce) {
+    .animate-pulse {
+        animation: none;
+    }
 }
