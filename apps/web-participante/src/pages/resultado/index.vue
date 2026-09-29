@@ -15,7 +15,7 @@ const titulo = computed(() => (state.fotos.length === 1 ? "1 foto sua" : `${stat
 </script>
 
 <template>
-    <main class="tela-largada px-5 py-7">
+    <main class="tela-foto px-5 py-7">
         <p v-if="state.carregando" class="titulo">Abrindo suas fotos…</p>
 
         <section v-else-if="state.mensagem && state.fotos.length === 0" class="flex min-h-[70dvh] flex-col justify-center">
@@ -39,7 +39,7 @@ const titulo = computed(() => (state.fotos.length === 1 ? "1 foto sua" : `${stat
 
         <template v-else>
             <p class="rotulo">{{ state.evento }}</p>
-            <h1 class="titulo mt-1">{{ titulo }}</h1>
+            <h1 class="titulo titulo-tela mt-1">{{ titulo }}</h1>
             <p v-if="validade" class="mt-1 text-[11px] text-white/75">Disponível até {{ validade }}</p>
 
             <GradeFotos class="mt-4" :fotos="state.fotos" mostrar-selo @abrir="actions.abrir" />

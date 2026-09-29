@@ -3,6 +3,7 @@ import { router } from "../../router";
 import { ErroDaApi } from "../../ts/api";
 import { baixarArquivo } from "../../ts/arquivos";
 import { buscarPorSelfie, VERSAO_TERMO } from "../../ts/busca";
+import { compartilharFoto, podeCompartilharArquivos } from "../../ts/compartilhar";
 import { entradaDaBusca, guardarEntrada } from "../../ts/entrada";
 import { atualizarMemoria, guardarMemoria, limparMemoria, memoriaDoEvento } from "../../ts/memoria";
 import { esperarPartes } from "../../ts/zip";
@@ -36,14 +37,6 @@ let prontaParaEnvio: { indice: number; arquivo: File; url: string } | null = nul
 
 export function validadeParaTela(validadeAte: string | null): string {
     return validadeAte ? new Date(validadeAte).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) : "";
-}
-
-function foiCancelado(erro: unknown): boolean {
-    return erro instanceof DOMException && erro.name === "AbortError";
-}
-
-function recusadoPorFaltaDeToque(erro: unknown): boolean {
-    return erro instanceof DOMException && erro.name === "NotAllowedError";
 }
 
 // O caminho de entrada é o elo com a memória: vem da busca guardada e, sem ela, do slug
@@ -112,12 +105,8 @@ export const actions = {
         if (state.aberta !== null) state.aberta = Math.max(state.aberta - 1, 0);
     },
 
-    // O navigator.share do computador existe mas recusa anexo; por isso a pergunta é se ele
-    // aceita um arquivo, não só se a função existe.
     podeCompartilhar(): boolean {
-        const nav = globalThis.navigator as Navigator | undefined;
-        if (typeof nav?.share !== "function" || typeof nav.canShare !== "function") return false;
-        return nav.canShare({ files: [new File([], "foto.jpg", { type: "image/jpeg" })] });
+        return podeCompartilharArquivos();
     },
 
     async linkDaFoto(indice: number): Promise<string | null> {
@@ -149,36 +138,28 @@ export const actions = {
 
     async compartilhar(indice: number): Promise<void> {
         const foto = state.fotos[indice];
-        if (!foto || !actions.podeCompartilhar()) return;
+        if (!foto || !podeCompartilharArquivos()) return;
 
         const pronta = prontaParaEnvio?.indice === indice ? prontaParaEnvio : null;
         prontaParaEnvio = null;
         state.compartilharPronto = null;
 
         let url = pronta?.url ?? null;
-        let arquivo = pronta?.arquivo ?? null;
         try {
-            if (!arquivo) {
-                url = await actions.linkDaFoto(indice);
-                if (!url) return;
+            if (!url) url = await actions.linkDaFoto(indice);
+            if (!url) return;
 
-                // Baixa o arquivo para poder anexar: compartilhar só o link faria a pessoa
-                // mandar uma URL que vence em uma hora.
-                const resposta = await fetch(url);
-                if (!resposta.ok) throw new Error(`A foto respondeu ${resposta.status}.`);
-                arquivo = new File([await resposta.blob()], `foto-${foto.id_foto}.jpg`, { type: "image/jpeg" });
-            }
-            await navigator.share({ files: [arquivo], title: state.evento });
-        } catch (erro) {
-            if (foiCancelado(erro)) return;
-            // No iPhone o menu só abre colado no toque, e baixar a foto pode passar desse
-            // tempo. Com a foto já em mãos, o segundo toque abre o menu na hora — baixar para
-            // Arquivos no lugar não põe a foto na galeria.
-            if (!pronta && arquivo && url && recusadoPorFaltaDeToque(erro)) {
-                prontaParaEnvio = { indice, arquivo, url };
+            const resultado = await compartilharFoto({
+                url,
+                nomeArquivo: `foto-${foto.id_foto}.jpg`,
+                titulo: state.evento,
+                arquivoPronto: pronta?.arquivo,
+            });
+            if (resultado.situacao === "toqueDeNovo") {
+                prontaParaEnvio = { indice, arquivo: resultado.arquivo, url };
                 state.compartilharPronto = indice;
-                return;
             }
+        } catch (erro) {
             // Qualquer outra recusa: a pessoa fica com a foto salva em vez de um botão mudo.
             if (url) baixarArquivo(url);
             else actions.mostrarFalha(erro);

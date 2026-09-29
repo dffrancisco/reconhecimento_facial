@@ -33,20 +33,26 @@ describe("FotoAberta", () => {
         expect(tela.find("img").attributes("src")).toBe(foto.thumb);
     });
 
-    test("com suporte a compartilhar, mostra os dois botões", () => {
+    test("com suporte a compartilhar há um só botão: Salvar / Compartilhar", () => {
         const tela = abrir({ foto, podeCompartilhar: true });
-        expect(tela.text()).toContain("Salvar");
-        expect(tela.text()).toContain("Compartilhar");
+        const botoes = tela.findAll("button").filter((b) => b.text() !== "×");
+        expect(botoes).toHaveLength(1);
+        expect(botoes[0].text()).toBe("Salvar / Compartilhar");
+        botoes[0].trigger("click");
+        expect(tela.emitted("compartilhar")).toBeTruthy();
     });
 
-    test("sem suporte a compartilhar, sobra só Salvar", () => {
+    test("sem suporte o botão é Baixar e salva direto", () => {
         // No computador o navigator.share não existe: o botão não pode ficar lá dando erro.
         const tela = abrir({ foto, podeCompartilhar: false });
-        expect(tela.text()).toContain("Salvar");
-        expect(tela.text()).not.toContain("Compartilhar");
+        const botoes = tela.findAll("button").filter((b) => b.text() !== "×");
+        expect(botoes).toHaveLength(1);
+        expect(botoes[0].text()).toBe("Baixar");
+        botoes[0].trigger("click");
+        expect(tela.emitted("salvar")).toBeTruthy();
     });
 
-    test("com a foto já pronta, o botão pede o segundo toque", () => {
+    test("aguardando o segundo toque do iPhone, o rótulo avisa", () => {
         const tela = abrir({ foto, podeCompartilhar: true, prontaParaCompartilhar: true });
         expect(tela.text()).toContain("Toque de novo para compartilhar");
     });

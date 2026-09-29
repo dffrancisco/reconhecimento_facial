@@ -3,6 +3,7 @@ import { actions, state, validadeParaTela } from "./resultado";
 import { getResultado, gerarLinks, pedirZip, situacaoZip } from "./services/resultado.service";
 import { baixarArquivo } from "../../ts/arquivos";
 import { ErroDaApi } from "../../ts/api";
+import { compartilharFoto, podeCompartilharArquivos } from "../../ts/compartilhar";
 import { entradaDaBusca } from "../../ts/entrada";
 import { atualizarMemoria, limparMemoria, memoriaDoEvento } from "../../ts/memoria";
 import { buscarPorSelfie } from "../../ts/busca";
@@ -15,6 +16,8 @@ vi.mock("./services/resultado.service", () => ({
 }));
 
 vi.mock("../../ts/arquivos", () => ({ baixarArquivo: vi.fn() }));
+
+vi.mock("../../ts/compartilhar", () => ({ compartilharFoto: vi.fn(), podeCompartilharArquivos: vi.fn() }));
 
 vi.mock("../../ts/memoria", () => ({
     memoriaDoEvento: vi.fn(),
@@ -53,7 +56,6 @@ const linkDaFoto = { links: [{ id_foto: 1, url: "/arquivos/7/a_web.jpg?md5=x&exp
 describe("tela de resultado", () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        vi.unstubAllGlobals();
         state.fotos = [];
         state.mensagem = "";
         state.mensagemRebusca = "";
@@ -182,22 +184,38 @@ describe("tela de resultado", () => {
         expect(baixarArquivo).toHaveBeenCalledWith(linkDaFoto.links[0].url);
     });
 
-    test("compartilhar só aparece quando o navegador aceita arquivo, não só link", () => {
-        // O navigator.share do computador existe, mas recusa anexo: o clique daria erro.
-        vi.stubGlobal("navigator", { share: vi.fn(), canShare: () => false });
+    test("compartilhar só aparece quando o ts/compartilhar comum libera", () => {
+        // A regra de "aceita arquivo, não só link" já é testada em ts/compartilhar.test.ts;
+        // aqui só interessa que a tela repassa a resposta dele.
+        vi.mocked(podeCompartilharArquivos).mockReturnValue(false);
         expect(actions.podeCompartilhar()).toBe(false);
 
-        vi.stubGlobal("navigator", { share: vi.fn(), canShare: () => true });
+        vi.mocked(podeCompartilharArquivos).mockReturnValue(true);
         expect(actions.podeCompartilhar()).toBe(true);
-
-        vi.stubGlobal("navigator", {});
-        expect(actions.podeCompartilhar()).toBe(false);
     });
 
-    test("compartilhamento que o navegador não consegue fazer cai no download", async () => {
+    test("compartilhar com sucesso não baixa nada por baixo", async () => {
+        vi.mocked(podeCompartilharArquivos).mockReturnValue(true);
         vi.mocked(gerarLinks).mockResolvedValue(linkDaFoto);
-        vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, blob: async () => new Blob([new Uint8Array([1])]) }));
-        vi.stubGlobal("navigator", { canShare: () => true, share: vi.fn().mockRejectedValue(new TypeError("arquivo não aceito")) });
+        vi.mocked(compartilharFoto).mockResolvedValue({ situacao: "ok" });
+        state.fotos = resultadoCheio.fotos;
+        state.evento = "Corrida da Serra";
+
+        await actions.compartilhar(0);
+
+        expect(compartilharFoto).toHaveBeenCalledWith({
+            url: linkDaFoto.links[0].url,
+            nomeArquivo: "foto-1.jpg",
+            titulo: "Corrida da Serra",
+            arquivoPronto: undefined,
+        });
+        expect(baixarArquivo).not.toHaveBeenCalled();
+    });
+
+    test("recusa que o ts/compartilhar comum não resolve cai no download", async () => {
+        vi.mocked(podeCompartilharArquivos).mockReturnValue(true);
+        vi.mocked(gerarLinks).mockResolvedValue(linkDaFoto);
+        vi.mocked(compartilharFoto).mockRejectedValue(new TypeError("arquivo não aceito"));
         state.fotos = resultadoCheio.fotos;
 
         await actions.compartilhar(0);
@@ -205,17 +223,15 @@ describe("tela de resultado", () => {
         expect(baixarArquivo).toHaveBeenCalledWith(linkDaFoto.links[0].url);
     });
 
-    test("toque que venceu enquanto a foto baixava deixa a foto pronta para um segundo toque", async () => {
-        // No iPhone o menu de compartilhar só abre logo depois do toque, e baixar a foto pode
-        // passar desse tempo. Baixar para Arquivos no lugar não põe a foto na galeria dela.
+    test("toque de novo devolve a foto pronta para o segundo toque, sem baixar o link de novo", async () => {
+        // No iPhone o menu de compartilhar só abre logo depois do toque; o ts/compartilhar
+        // comum devolve o arquivo já baixado para o segundo toque abrir na hora.
+        vi.mocked(podeCompartilharArquivos).mockReturnValue(true);
         vi.mocked(gerarLinks).mockResolvedValue(linkDaFoto);
-        const baixar = vi.fn().mockResolvedValue({ ok: true, blob: async () => new Blob([new Uint8Array([1])]) });
-        const compartilhar = vi
-            .fn()
-            .mockRejectedValueOnce(new DOMException("sem gesto", "NotAllowedError"))
-            .mockResolvedValueOnce(undefined);
-        vi.stubGlobal("fetch", baixar);
-        vi.stubGlobal("navigator", { canShare: () => true, share: compartilhar });
+        const arquivoPronto = new File([], "foto-1.jpg", { type: "image/jpeg" });
+        vi.mocked(compartilharFoto)
+            .mockResolvedValueOnce({ situacao: "toqueDeNovo", arquivo: arquivoPronto })
+            .mockResolvedValueOnce({ situacao: "ok" });
         state.fotos = resultadoCheio.fotos;
         state.aberta = 0;
 
@@ -224,29 +240,15 @@ describe("tela de resultado", () => {
         expect(actions.prontaParaCompartilhar()).toBe(true);
 
         await actions.compartilhar(0);
-        expect(baixar).toHaveBeenCalledTimes(1);
         expect(gerarLinks).toHaveBeenCalledTimes(1);
-        expect(compartilhar.mock.calls[1][0].files[0]).toBe(compartilhar.mock.calls[0][0].files[0]);
+        expect(vi.mocked(compartilharFoto).mock.calls[1][0].arquivoPronto).toBe(arquivoPronto);
         expect(actions.prontaParaCompartilhar()).toBe(false);
     });
 
-    test("foto que não baixou não vira anexo vazio: cai no download", async () => {
-        vi.mocked(gerarLinks).mockResolvedValue(linkDaFoto);
-        const compartilhar = vi.fn();
-        vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 410, blob: async () => new Blob(["vencido"]) }));
-        vi.stubGlobal("navigator", { canShare: () => true, share: compartilhar });
-        state.fotos = resultadoCheio.fotos;
-
-        await actions.compartilhar(0);
-
-        expect(compartilhar).not.toHaveBeenCalled();
-        expect(baixarArquivo).toHaveBeenCalledWith(linkDaFoto.links[0].url);
-    });
-
     test("cancelar o menu de compartilhar não baixa nada", async () => {
+        vi.mocked(podeCompartilharArquivos).mockReturnValue(true);
         vi.mocked(gerarLinks).mockResolvedValue(linkDaFoto);
-        vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, blob: async () => new Blob([new Uint8Array([1])]) }));
-        vi.stubGlobal("navigator", { canShare: () => true, share: vi.fn().mockRejectedValue(new DOMException("cancelou", "AbortError")) });
+        vi.mocked(compartilharFoto).mockResolvedValue({ situacao: "cancelado" });
         state.fotos = resultadoCheio.fotos;
 
         await actions.compartilhar(0);

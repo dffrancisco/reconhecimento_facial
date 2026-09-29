@@ -62,10 +62,12 @@ function terminar(evento: TouchEvent): void {
             <img :src="foto.thumb" alt="Sua foto no evento" class="max-h-full max-w-full object-contain" />
         </div>
         <div class="flex gap-2 px-4 pb-6 pt-3">
-            <button type="button" class="pilula" @click="$emit('salvar')">Salvar</button>
-            <button v-if="podeCompartilhar" type="button" class="pilula-vazada" @click="$emit('compartilhar')">
-                {{ prontaParaCompartilhar ? "Toque de novo para compartilhar" : "Compartilhar" }}
+            <!-- Um botão só: no celular o menu do sistema tem "Salvar imagem" (que é o salvar
+                 de verdade no iPhone); sem suporte a anexo, sobra o download direto. -->
+            <button v-if="podeCompartilhar" type="button" class="pilula" @click="$emit('compartilhar')">
+                {{ prontaParaCompartilhar ? "Toque de novo para compartilhar" : "Salvar / Compartilhar" }}
             </button>
+            <button v-else type="button" class="pilula" @click="$emit('salvar')">Baixar</button>
         </div>
     </div>
 </template>
