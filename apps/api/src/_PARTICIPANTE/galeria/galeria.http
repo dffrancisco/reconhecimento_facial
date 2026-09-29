@@ -1,0 +1,37 @@
+@vps = http://localhost:3002
+
+### Evento público — dados e dias
+POST {{vps}}/api/participante/galeria
+Content-Type: application/json
+
+{ "call": "getEvento", "slug": "corrida-demo" }
+
+### Galeria — primeira página, sem filtro
+POST {{vps}}/api/participante/galeria
+Content-Type: application/json
+
+{ "call": "getGaleria", "slug": "corrida-demo", "offset": 0 }
+
+### Galeria — filtrando por dia
+POST {{vps}}/api/participante/galeria
+Content-Type: application/json
+
+{ "call": "getGaleria", "slug": "corrida-demo", "offset": 0, "dia": "2026-09-26" }
+
+### Evento privado pela chave
+POST {{vps}}/api/participante/galeria
+Content-Type: application/json
+
+{ "call": "getEvento", "chave_acesso": "CHAVE-DO-EVENTO" }
+
+### Privado pelo slug: deve responder 422 "Evento não encontrado. Confira o link."
+POST {{vps}}/api/participante/galeria
+Content-Type: application/json
+
+{ "call": "getEvento", "slug": "slug-do-evento-privado" }
+
+### Dia inválido: deve responder erro de negócio "Dia inválido"
+POST {{vps}}/api/participante/galeria
+Content-Type: application/json
+
+{ "call": "getGaleria", "slug": "corrida-demo", "offset": 0, "dia": "26/09/2026" }
