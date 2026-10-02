@@ -1,6 +1,7 @@
 export interface FotoDoResultado {
     id_foto: number;
     thumb: string;
+    web: string;
     similaridade: number;
 }
 

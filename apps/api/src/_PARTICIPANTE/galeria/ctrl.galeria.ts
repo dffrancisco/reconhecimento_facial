@@ -1,7 +1,7 @@
 import ConexaoPostgres from "../../db/conexaoPostgres";
 import { ErroTratado } from "../../services/erro";
 import { urlDaFoto } from "../../services/linkArquivo";
-import { diasDoEvento, eventoPublico, fotosDoEvento, LinhaEventoPublico } from "./sql.galeria";
+import { diasDoEvento, eventoPublico, fotoDeCapa, fotosDoEvento, LinhaEventoPublico } from "./sql.galeria";
 
 export default class GaleriaCtrl {
     constructor(private conexao: ConexaoPostgres) {}
@@ -9,12 +9,16 @@ export default class GaleriaCtrl {
     async getEvento(entrada: { slug?: string; chaveAcesso?: string }) {
         const evento = await this.exigirEvento(entrada);
         const dias = await diasDoEvento(this.conexao, evento.id_evento);
+        const capa = await fotoDeCapa(this.conexao, evento.id_evento);
         return {
             nome: evento.nome,
             data_inicio: evento.data_inicio,
             data_fim: evento.data_fim,
             total_fotos: dias.reduce((soma, d) => soma + d.qtd, 0),
             dias,
+            // O thumb basta: por baixo de 90% de degradê a foto é textura, e a home não pode
+            // esperar 1 MB da versão web num 4G de evento.
+            capa: capa ? urlDaFoto(evento.id_evento, capa.hash_arquivo, "thumb") : null,
         };
     }
 

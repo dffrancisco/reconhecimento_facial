@@ -92,6 +92,19 @@ describe("getResultado", () => {
         assert.match(fotos[0].thumb, /_thumb\.jpg\?md5=.+&expires=\d+$/);
     });
 
+    test("cada foto traz também a versão grande para ver, sem contar como download", async () => {
+        // A foto aberta rola em largura total: o thumb de 400 px ficaria borrado.
+        const r = await chamar({ call: "getResultado", token: tokenLiberado });
+
+        const fotos = r.corpo.fotos as { web: string }[];
+        assert.match(fotos[0].web, /_web\.jpg\?md5=.+&expires=\d+$/);
+        const busca = await conexao.queryOneParam<{ qtd_downloads: number }>(
+            "SELECT qtd_downloads FROM busca WHERE token = ?",
+            [tokenLiberado]
+        );
+        assert.strictEqual(busca?.qtd_downloads, 0);
+    });
+
     test("busca aguardando não entrega foto nenhuma", async () => {
         const r = await chamar({ call: "getResultado", token: tokenAguardando });
 

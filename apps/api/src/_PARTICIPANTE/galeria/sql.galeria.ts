@@ -50,6 +50,15 @@ export async function diasDoEvento(conexao: ConexaoPostgres, idEvento: number): 
     );
 }
 
+// Sorteada a cada visita, para a home não ficar sempre com a mesma cara. O random() varre
+// as fotos do evento, mas são milhares no máximo e a home é uma chamada por visita.
+export async function fotoDeCapa(conexao: ConexaoPostgres, idEvento: number): Promise<{ hash_arquivo: string } | undefined> {
+    return conexao.queryOneParam(
+        `SELECT hash_arquivo FROM foto WHERE id_evento = ? AND situacao = 'visivel' ORDER BY random() LIMIT 1`,
+        [idEvento]
+    );
+}
+
 export async function fotosDoEvento(
     conexao: ConexaoPostgres,
     idEvento: number,

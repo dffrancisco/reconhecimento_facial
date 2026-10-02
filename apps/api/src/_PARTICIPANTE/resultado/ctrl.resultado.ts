@@ -38,6 +38,8 @@ export default class ResultadoCtrl {
             fotos: fotos.map((foto) => ({
                 id_foto: foto.id_foto,
                 thumb: urlDaFoto(busca.id_evento, foto.hash_arquivo, "thumb"),
+                // Para ver na foto aberta: sem `dl=1` e fora do contador, que é do gerarLinks.
+                web: urlDaFoto(busca.id_evento, foto.hash_arquivo, "web"),
                 similaridade: Number(foto.similaridade),
             })),
         };
