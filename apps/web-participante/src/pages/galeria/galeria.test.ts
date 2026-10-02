@@ -1,10 +1,13 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { actions, state } from "./galeria";
 import { getEvento, getGaleria } from "../../ts/galeriaPublica";
+import { baixarArquivo } from "../../ts/arquivos";
 
 vi.mock("../../ts/galeriaPublica", () => ({ getEvento: vi.fn(), getGaleria: vi.fn() }));
 vi.mock("../../ts/arquivos", () => ({ baixarArquivo: vi.fn() }));
 vi.mock("../../ts/compartilhar", () => ({ podeCompartilharArquivos: () => false, compartilharFoto: vi.fn() }));
+const roteador = vi.hoisted(() => ({ push: vi.fn() }));
+vi.mock("../../router", () => ({ router: roteador }));
 
 const eventoDoisDias = {
     nome: "Correndo com Elas",
@@ -15,6 +18,7 @@ const eventoDoisDias = {
         { dia: "2026-09-26", qtd: 2 },
         { dia: "2026-09-27", qtd: 1 },
     ],
+    capa: null,
 };
 
 const fotos = (ids: number[]) =>
@@ -78,5 +82,25 @@ describe("galeria pública", () => {
         expect(state.fotos).toHaveLength(0);
         expect(state.acabou).toBe(true);
         expect(state.mensagem).toBe("");
+    });
+
+    test("baixar uma foto da lista leva a versão grande como anexo", async () => {
+        vi.mocked(getEvento).mockResolvedValue(eventoDoisDias);
+        await actions.init("correndo-com-elas", "");
+
+        actions.salvar(1);
+
+        expect(baixarArquivo).toHaveBeenCalledWith(`${fotos([1, 2])[1].web}&dl=1`);
+    });
+
+    test("voltar leva à página inicial do evento, pública ou privada", async () => {
+        vi.mocked(getEvento).mockResolvedValue(eventoDoisDias);
+        await actions.init("correndo-com-elas", "");
+        actions.voltar();
+        expect(roteador.push).toHaveBeenLastCalledWith("/e/correndo-com-elas");
+
+        await actions.init("", "CHAVE123");
+        actions.voltar();
+        expect(roteador.push).toHaveBeenLastCalledWith("/p/CHAVE123");
     });
 });

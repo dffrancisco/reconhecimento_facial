@@ -2,6 +2,7 @@
 import { nextTick } from "vue";
 import { useRoute } from "vue-router";
 import BotaoPilula from "../../componentes/BotaoPilula.vue";
+import BotaoVoltar from "../../componentes/BotaoVoltar.vue";
 import FotoAberta from "../../componentes/FotoAberta.vue";
 import GradeFotos from "../../componentes/GradeFotos.vue";
 import { rotuloDoDia } from "../../ts/dias";
@@ -12,7 +13,10 @@ nextTick(() => actions.init(String(rota.params.slug ?? ""), String(rota.params.c
 </script>
 
 <template>
-    <main class="tela-foto px-5 py-7">
+    <main class="tela-foto px-5 pb-7">
+        <header class="barra-topo">
+            <BotaoVoltar @click="actions.voltar()" />
+        </header>
         <p class="rotulo">Todas as fotos</p>
         <h1 class="titulo titulo-tela mt-1">{{ state.nomeEvento || "Abrindo…" }}</h1>
 
@@ -46,15 +50,17 @@ nextTick(() => actions.init(String(rota.params.slug ?? ""), String(rota.params.c
         </template>
 
         <FotoAberta
-            v-if="actions.fotoAberta()"
-            :foto="actions.fotoAberta()!"
+            v-if="state.aberta !== null"
+            :fotos="state.fotos"
+            :inicio="state.aberta"
             :pode-compartilhar="actions.podeCompartilhar()"
-            :pronta-para-compartilhar="actions.prontaParaCompartilhar()"
+            :pronta-para-compartilhar="state.compartilharPronto"
+            :tem-mais="!state.acabou"
+            :carregando="state.carregando"
             @fechar="actions.fechar()"
-            @salvar="actions.salvar()"
-            @compartilhar="actions.compartilhar()"
-            @proxima="actions.proxima()"
-            @anterior="actions.anterior()"
+            @baixar="actions.salvar"
+            @compartilhar="actions.compartilhar"
+            @carregar-mais="actions.carregarMais()"
         />
     </main>
 </template>

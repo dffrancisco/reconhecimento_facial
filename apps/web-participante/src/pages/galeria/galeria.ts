@@ -1,5 +1,5 @@
 import { reactive } from "vue";
-import type { FotoNaGrade } from "../../componentes/interfaces";
+import { router } from "../../router";
 import { baixarArquivo } from "../../ts/arquivos";
 import { compartilharFoto, podeCompartilharArquivos } from "../../ts/compartilhar";
 import type { DiaDoEvento, EntradaEvento, FotoPublica } from "../../ts/galeriaPublica";
@@ -80,6 +80,10 @@ export const actions = {
         }
     },
 
+    voltar(): void {
+        router.push(state.entrada.chaveAcesso ? `/p/${state.entrada.chaveAcesso}` : `/e/${state.entrada.slug}`);
+    },
+
     abrir(indice: number): void {
         state.aberta = indice;
     },
@@ -88,38 +92,19 @@ export const actions = {
         state.aberta = null;
     },
 
-    proxima(): void {
-        if (state.aberta !== null) state.aberta = Math.min(state.aberta + 1, state.fotos.length - 1);
-    },
-
-    anterior(): void {
-        if (state.aberta !== null) state.aberta = Math.max(state.aberta - 1, 0);
-    },
-
-    // A foto aberta mostra a versão web (2048 px), não o thumb da grade.
-    fotoAberta(): FotoNaGrade | null {
-        const foto = state.aberta === null ? undefined : state.fotos[state.aberta];
-        return foto ? { id_foto: foto.id_foto, thumb: foto.web } : null;
-    },
-
     podeCompartilhar(): boolean {
         return podeCompartilharArquivos();
     },
 
-    prontaParaCompartilhar(): boolean {
-        return state.compartilharPronto !== null && state.compartilharPronto === state.aberta;
-    },
-
     // `dl=1` faz o nginx responder como anexo; fica fora da assinatura, que cobre só o caminho.
-    salvar(): void {
-        const foto = state.aberta === null ? undefined : state.fotos[state.aberta];
+    salvar(indice: number): void {
+        const foto = state.fotos[indice];
         if (foto) baixarArquivo(`${foto.web}&dl=1`);
     },
 
-    async compartilhar(): Promise<void> {
-        const indice = state.aberta;
-        const foto = indice === null ? undefined : state.fotos[indice];
-        if (indice === null || !foto || !podeCompartilharArquivos()) return;
+    async compartilhar(indice: number): Promise<void> {
+        const foto = state.fotos[indice];
+        if (!foto || !podeCompartilharArquivos()) return;
 
         const pronta = prontaParaEnvio?.indice === indice ? prontaParaEnvio : null;
         prontaParaEnvio = null;

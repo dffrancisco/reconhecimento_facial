@@ -97,14 +97,6 @@ export const actions = {
         state.aberta = null;
     },
 
-    proxima(): void {
-        if (state.aberta !== null) state.aberta = Math.min(state.aberta + 1, state.fotos.length - 1);
-    },
-
-    anterior(): void {
-        if (state.aberta !== null) state.aberta = Math.max(state.aberta - 1, 0);
-    },
-
     podeCompartilhar(): boolean {
         return podeCompartilharArquivos();
     },
@@ -130,10 +122,6 @@ export const actions = {
         } catch (erro) {
             actions.mostrarFalha(erro);
         }
-    },
-
-    prontaParaCompartilhar(): boolean {
-        return state.compartilharPronto !== null && state.compartilharPronto === state.aberta;
     },
 
     async compartilhar(indice: number): Promise<void> {
@@ -230,6 +218,11 @@ export const actions = {
     // saiu porque o "voltar" pode ser a home, não a câmera.
     temCaminhoParaCamera(): boolean {
         return Boolean(caminhoDoEvento());
+    },
+
+    voltar(): void {
+        const caminho = caminhoDoEvento();
+        if (caminho) router.push(caminho);
     },
 
     voltarParaCamera(): void {

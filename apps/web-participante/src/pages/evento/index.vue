@@ -2,6 +2,7 @@
 import { nextTick, onUnmounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import BotaoPilula from "../../componentes/BotaoPilula.vue";
+import BotaoVoltar from "../../componentes/BotaoVoltar.vue";
 import { actions, state } from "./evento";
 
 const rota = useRoute();
@@ -31,6 +32,15 @@ watch(
     { immediate: true },
 );
 
+// Clarão no oval a cada selfie que entra: a resposta ao toque de que a foto foi tirada.
+const clarao = ref(false);
+watch(
+    () => state.selfies.length,
+    (agora, antes) => {
+        if (agora > antes) clarao.value = true;
+    },
+);
+
 onUnmounted(() => {
     actions.encerrarCamera();
     if (miniatura.value) URL.revokeObjectURL(miniatura.value);
@@ -56,29 +66,37 @@ function aoEscolher(evento: Event): void {
                     autoplay
                     playsinline
                     muted
-                    class="absolute inset-0 h-full w-full object-cover opacity-80"
+                    class="absolute inset-0 h-full w-full object-cover"
                     :class="{ '-scale-x-100': state.lado === 'user' }"
                 ></video>
-                <div
-                    class="pointer-events-none absolute left-1/2 top-1/2 h-[54%] w-[62%] -translate-x-1/2 -translate-y-1/2 rounded-[50%] border-[3px] border-dashed border-white/90"
-                ></div>
 
-                <div class="absolute inset-x-3 bottom-4 rounded-[15px] bg-black/80 p-3 backdrop-blur">
-                    <p class="text-sm font-extrabold">Encaixe seu rosto e toque</p>
-                    <label class="mt-2 flex items-start gap-2 text-[10px] leading-snug">
-                        <input v-model="state.consentiu" type="checkbox" class="mt-0.5 size-4 shrink-0 accent-white" />
-                        <span>
-                            Autorizo o uso da selfie para achar minhas fotos. Ela é apagada depois.
-                            <router-link to="/privacidade" class="underline">Termo</router-link>
-                        </span>
-                    </label>
+                <div class="absolute inset-0 flex flex-col">
+                    <!-- relative z-10: o véu é a sombra do oval e passaria por cima do resto. -->
+                    <header class="relative z-10 flex items-center justify-between px-3 pt-2">
+                        <BotaoVoltar @click="actions.voltar()" />
+                        <label class="flex min-h-11 items-center gap-2.5 pr-2 text-[0.95rem] font-semibold">
+                            <input v-model="state.consentiu" type="checkbox" class="caixa-termos" />
+                            <span>Aceito os <router-link to="/privacidade" class="underline underline-offset-4">termos</router-link></span>
+                        </label>
+                    </header>
 
-                    <template v-if="state.selfies.length > 0">
-                        <BotaoPilula class="mt-3" @click="actions.buscar()">Buscar agora</BotaoPilula>
-                        <p v-if="actions.podeDisparar()" class="mt-2 text-center text-[10px] text-white/75">
-                            Ou toque de novo para adicionar outra ({{ state.selfies.length }} de {{ state.maxSelfies }})
+                    <div class="pointer-events-none flex flex-1 items-center justify-center">
+                        <div class="oval-selfie" :data-clarao="clarao || undefined" @animationend="clarao = false"></div>
+                    </div>
+
+                    <div class="relative z-10 flex flex-col items-center px-6 pb-5 text-center">
+                        <p :key="state.selfies.length" class="contador-selfies" :class="{ 'contador-selfies-novo': state.selfies.length > 0 }" aria-live="polite">
+                            {{ state.selfies.length }}
                         </p>
-                    </template>
+                        <!-- Sem o visto o disparo fica travado: a frase diz o que destrava. -->
+                        <p class="mt-1.5 text-sm text-white/90">
+                            {{ state.consentiu ? `Tire até ${state.maxSelfies} selfies para um resultado melhor` : "Marque “Aceito os termos” para começar" }}
+                        </p>
+                        <p v-if="state.mensagem" class="mt-1 text-xs text-white/85">{{ state.mensagem }}</p>
+                        <button type="button" class="botao-rastrear mt-5" :disabled="!actions.podeRastrear()" @click="actions.buscar()">
+                            Rastrear Foto
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -97,20 +115,25 @@ function aoEscolher(evento: Event): void {
             </div>
         </template>
 
-        <section v-else-if="state.etapa === 'semCamera'" class="flex flex-1 flex-col justify-center px-6 py-10">
-            <p class="rotulo">Achar minhas fotos</p>
-            <h1 class="titulo mt-2">{{ state.mensagem }}</h1>
-            <label class="mt-3 flex items-start gap-2 text-xs leading-snug">
-                <input v-model="state.consentiu" type="checkbox" class="mt-0.5 size-4 shrink-0 accent-white" />
-                <span>
-                    Autorizo o uso da selfie para achar minhas fotos. Ela é apagada depois.
-                    <router-link to="/privacidade" class="underline">Termo</router-link>
-                </span>
-            </label>
-            <BotaoPilula class="mt-6" :desabilitado="!state.consentiu" @click="entradaArquivo?.click()">
-                Escolher da galeria
-            </BotaoPilula>
-        </section>
+        <template v-else-if="state.etapa === 'semCamera'">
+            <header class="barra-topo px-6">
+                <BotaoVoltar @click="actions.voltar()" />
+            </header>
+            <section class="flex flex-1 flex-col justify-center px-6 pb-10">
+                <p class="rotulo">Achar minhas fotos</p>
+                <h1 class="titulo mt-2">{{ state.mensagem }}</h1>
+                <label class="mt-4 flex items-start gap-2.5 text-sm leading-snug">
+                    <input v-model="state.consentiu" type="checkbox" class="caixa-termos mt-px" />
+                    <span>
+                        Autorizo o uso da selfie para achar minhas fotos. Ela é apagada depois.
+                        <router-link to="/privacidade" class="underline underline-offset-4">Termos</router-link>
+                    </span>
+                </label>
+                <BotaoPilula class="mt-6" :desabilitado="!state.consentiu" @click="entradaArquivo?.click()">
+                    Escolher da galeria
+                </BotaoPilula>
+            </section>
+        </template>
 
         <section v-else-if="state.etapa === 'buscando'" class="flex flex-1 flex-col items-center justify-center px-6 text-center">
             <img
@@ -130,12 +153,17 @@ function aoEscolher(evento: Event): void {
             </div>
         </section>
 
-        <section v-else-if="state.etapa === 'erro'" class="flex flex-1 flex-col justify-center px-6 py-10">
-            <h1 class="titulo">{{ state.mensagem }}</h1>
-            <BotaoPilula class="mt-6" @click="actions.tentarDeNovo()">Tentar outra selfie</BotaoPilula>
-            <!-- Mesma selfie de novo: é o caminho de quem perdeu a conexão no meio da busca. -->
-            <BotaoPilula class="mt-2" variante="secundaria" @click="actions.buscar()">Tentar de novo</BotaoPilula>
-        </section>
+        <template v-else-if="state.etapa === 'erro'">
+            <header class="barra-topo px-6">
+                <BotaoVoltar @click="actions.voltar()" />
+            </header>
+            <section class="flex flex-1 flex-col justify-center px-6 pb-10">
+                <h1 class="titulo">{{ state.mensagem }}</h1>
+                <BotaoPilula class="mt-6" @click="actions.tentarDeNovo()">Tentar outra selfie</BotaoPilula>
+                <!-- Mesma selfie de novo: é o caminho de quem perdeu a conexão no meio da busca. -->
+                <BotaoPilula class="mt-2" variante="secundaria" @click="actions.buscar()">Tentar de novo</BotaoPilula>
+            </section>
+        </template>
 
         <!-- Sem `capture`: no celular ele pula a galeria e abre a câmera, e este é o caminho
              de quem não pôde usar a câmera pelo navegador. -->

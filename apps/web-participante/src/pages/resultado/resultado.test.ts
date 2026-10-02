@@ -46,8 +46,8 @@ const resultadoCheio = {
     evento: { nome: "Corrida da Serra", slug: "corrida-da-serra" },
     validade_ate: "2026-12-31T00:00:00.000Z",
     fotos: [
-        { id_foto: 1, thumb: "/arquivos/7/a_thumb.jpg?md5=x&expires=1", similaridade: 0.97 },
-        { id_foto: 2, thumb: "/arquivos/7/b_thumb.jpg?md5=y&expires=1", similaridade: 0.8 },
+        { id_foto: 1, thumb: "/arquivos/7/a_thumb.jpg?md5=x&expires=1", web: "/arquivos/7/a_web.jpg?md5=x&expires=1", similaridade: 0.97 },
+        { id_foto: 2, thumb: "/arquivos/7/b_thumb.jpg?md5=y&expires=1", web: "/arquivos/7/b_web.jpg?md5=y&expires=1", similaridade: 0.8 },
     ],
 };
 
@@ -237,12 +237,12 @@ describe("tela de resultado", () => {
 
         await actions.compartilhar(0);
         expect(baixarArquivo).not.toHaveBeenCalled();
-        expect(actions.prontaParaCompartilhar()).toBe(true);
+        expect(state.compartilharPronto).toBe(0);
 
         await actions.compartilhar(0);
         expect(gerarLinks).toHaveBeenCalledTimes(1);
         expect(vi.mocked(compartilharFoto).mock.calls[1][0].arquivoPronto).toBe(arquivoPronto);
-        expect(actions.prontaParaCompartilhar()).toBe(false);
+        expect(state.compartilharPronto).toBeNull();
     });
 
     test("cancelar o menu de compartilhar não baixa nada", async () => {
@@ -268,16 +268,23 @@ describe("tela de resultado", () => {
         expect(state.mensagem).toContain("prazo");
     });
 
-    test("deslizar anda pelas fotos sem passar das pontas", () => {
-        state.fotos = resultadoCheio.fotos;
-        state.aberta = 0;
+    test("voltar leva à página inicial do evento", () => {
+        state.slug = "corrida-da-serra";
 
-        actions.anterior();
-        expect(state.aberta).toBe(0);
-        actions.proxima();
-        expect(state.aberta).toBe(1);
-        actions.proxima();
-        expect(state.aberta).toBe(1);
+        actions.voltar();
+
+        expect(roteador.push).toHaveBeenCalledWith("/e/corrida-da-serra");
+    });
+
+    test("voltar de evento privado usa a entrada guardada, não o slug", () => {
+        // Pelo slug a API recusa evento privado: a home abriria em "Evento não encontrado".
+        vi.mocked(entradaDaBusca).mockReturnValue("/p/chave-privada");
+        state.token = "tok123";
+        state.slug = "corrida-privada";
+
+        actions.voltar();
+
+        expect(roteador.push).toHaveBeenCalledWith("/p/chave-privada");
     });
 
     test("aberto direto pelo link, buscar de novo vai para a câmera do evento", () => {

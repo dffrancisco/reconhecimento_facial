@@ -11,6 +11,8 @@ export interface EventoPublico {
     data_fim: string;
     total_fotos: number;
     dias: DiaDoEvento[];
+    // Thumb assinado de uma foto sorteada, para o fundo da home; nulo sem foto publicada.
+    capa: string | null;
 }
 
 // A galeria pública já traz a versão web assinada, como a do anfitrião: aqui não há

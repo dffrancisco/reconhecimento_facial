@@ -44,13 +44,15 @@ nextTick(() => actions.init(String(rota.params.chave ?? "")));
         </template>
 
         <FotoAberta
-            v-if="actions.fotoAberta()"
-            :foto="actions.fotoAberta()!"
+            v-if="state.aberta !== null"
+            :fotos="state.fotos"
+            :inicio="state.aberta"
             :pode-compartilhar="false"
+            :tem-mais="!state.acabou"
+            :carregando="state.carregando"
             @fechar="actions.fechar()"
-            @salvar="actions.salvar()"
-            @proxima="actions.proxima()"
-            @anterior="actions.anterior()"
+            @baixar="actions.salvar"
+            @carregar-mais="actions.carregarMais()"
         />
     </main>
 </template>

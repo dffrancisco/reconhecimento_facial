@@ -20,7 +20,7 @@ describe("tela de privacidade", () => {
         await router.push("/privacidade");
         const tela = mount(Privacidade, { global: { plugins: [router] } });
 
-        await tela.get("button").trigger("click");
+        await tela.get("[aria-label='Voltar']").trigger("click");
         await new Promise((r) => window.addEventListener("popstate", r, { once: true }));
         await flushPromises();
 
@@ -34,7 +34,7 @@ describe("tela de privacidade", () => {
         await flushPromises();
         const tela = mount(Privacidade, { global: { plugins: [router] } });
 
-        expect(tela.text()).not.toContain("Voltar");
+        expect(tela.find("[aria-label='Voltar']").exists()).toBe(false);
     });
 
     describe("o que o termo precisa dizer (spec do app §3.6, plataforma §10)", () => {

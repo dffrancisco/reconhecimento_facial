@@ -35,6 +35,15 @@ export const actions = {
         return state.consentiu && state.selfies.length < state.maxSelfies;
     },
 
+    podeRastrear(): boolean {
+        return state.consentiu && state.selfies.length > 0;
+    },
+
+    voltar(): void {
+        actions.encerrarCamera();
+        router.push(state.chaveAcesso ? `/p/${state.chaveAcesso}` : `/e/${state.slug}`);
+    },
+
     // Abrir direto na câmera é o caminho mais rápido, mas parte das pessoas nega a permissão
     // por reflexo: quem negar precisa cair num lugar com saída, nunca numa tela preta.
     async pedirCamera(): Promise<void> {

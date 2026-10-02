@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick } from "vue";
+import { computed, nextTick, ref } from "vue";
 import { useRoute } from "vue-router";
 import BotaoPilula from "../../componentes/BotaoPilula.vue";
 import FaixaPatrocinadores from "../../componentes/FaixaPatrocinadores.vue";
@@ -10,10 +10,24 @@ const rota = useRoute();
 nextTick(() => actions.init(String(rota.params.slug ?? ""), String(rota.params.chave ?? "")));
 
 const periodo = computed(() => (state.evento ? periodoParaTela(state.evento.data_inicio, state.evento.data_fim) : ""));
+// A capa entra quando chega: até lá a home é só o degradê, que já é a cara do evento.
+const capaCarregada = ref(false);
 </script>
 
 <template>
-    <main class="tela-largada flex flex-col px-6 py-8">
+    <main class="tela-largada relative isolate flex flex-col overflow-hidden px-6 py-8">
+        <template v-if="state.evento?.capa">
+            <img
+                data-capa
+                :src="state.evento.capa"
+                alt=""
+                class="capa-evento"
+                :data-carregada="capaCarregada || undefined"
+                @load="capaCarregada = true"
+            />
+            <div class="veu-largada" aria-hidden="true"></div>
+        </template>
+
         <p v-if="state.carregando" class="titulo">Abrindo o evento…</p>
 
         <section v-else-if="state.mensagem" class="flex flex-1 flex-col justify-center">
@@ -25,8 +39,8 @@ const periodo = computed(() => (state.evento ? periodoParaTela(state.evento.data
             <!-- O nome grande é o elemento memorável: um número de peito, não um cartaz. -->
             <section class="flex flex-1 flex-col justify-center">
                 <p class="rotulo">Suas fotos do evento</p>
-                <h1 class="display mt-2">{{ state.evento.nome }}</h1>
-                <p class="mt-3 text-sm text-white/85">
+                <h1 class="display mt-3">{{ state.evento.nome }}</h1>
+                <p class="mt-4 text-sm text-white/90">
                     {{ periodo }}<template v-if="state.evento.total_fotos > 0"> · {{ state.evento.total_fotos.toLocaleString("pt-BR") }} fotos</template>
                 </p>
             </section>

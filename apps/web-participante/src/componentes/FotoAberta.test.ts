@@ -1,17 +1,40 @@
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import FotoAberta from "./FotoAberta.vue";
 
 const voltou = () => new Promise((pronto) => window.addEventListener("popstate", pronto, { once: true }));
 
-// Desmontar a foto aberta volta uma entrada no histórico, e esse popstate chega depois:
-// cada teste espera o seu terminar, senão ele cai no meio do teste seguinte.
+const fotos = [1, 2, 3].map((id) => ({
+    id_foto: id,
+    thumb: `/arquivos/7/${id}_thumb.jpg?md5=x&expires=1`,
+    web: `/arquivos/7/${id}_web.jpg?md5=x&expires=1`,
+}));
+
+type Props = {
+    fotos: typeof fotos;
+    inicio: number;
+    podeCompartilhar: boolean;
+    prontaParaCompartilhar?: number | null;
+    temMais?: boolean;
+};
+
+// Desmontar a lista volta uma entrada no histórico, e esse popstate chega depois: cada
+// teste espera o seu terminar, senão ele cai no meio do teste seguinte.
 const montadas: VueWrapper[] = [];
-function abrir(props: { foto: typeof foto; podeCompartilhar: boolean; prontaParaCompartilhar?: boolean }) {
-    const tela = mount(FotoAberta, { props });
+function abrir(props: Partial<Props> = {}) {
+    const tela = mount(FotoAberta, { props: { fotos, inicio: 0, podeCompartilhar: false, ...props } });
     montadas.push(tela);
     return tela;
 }
+
+// O jsdom não implementa scrollIntoView: o espião registra em qual foto a lista parou.
+let rolouAte: Element[] = [];
+beforeEach(() => {
+    rolouAte = [];
+    Element.prototype.scrollIntoView = vi.fn(function (this: Element) {
+        rolouAte.push(this);
+    });
+});
 
 afterEach(async () => {
     for (const tela of montadas.splice(0)) {
@@ -21,47 +44,70 @@ afterEach(async () => {
     }
 });
 
-const foto = { id_foto: 1, thumb: "/arquivos/7/a_thumb.jpg?md5=x&expires=1", similaridade: 0.9 };
-
-function toque(x: number, y = 300) {
-    return { changedTouches: [{ clientX: x, clientY: y }] };
-}
-
 describe("FotoAberta", () => {
-    test("mostra a foto em tela cheia", () => {
-        const tela = abrir({ foto, podeCompartilhar: true });
-        expect(tela.find("img").attributes("src")).toBe(foto.thumb);
+    test("mostra as fotos uma embaixo da outra, na versão grande", () => {
+        const tela = abrir();
+
+        const itens = tela.findAll("[data-foto]");
+        expect(itens).toHaveLength(3);
+        expect(itens[1].find(`img[src='${fotos[1].web}']`).exists()).toBe(true);
     });
 
-    test("com suporte a compartilhar há um só botão: Salvar / Compartilhar", () => {
-        const tela = abrir({ foto, podeCompartilhar: true });
-        const botoes = tela.findAll("button").filter((b) => b.text() !== "×");
-        expect(botoes).toHaveLength(1);
-        expect(botoes[0].text()).toBe("Salvar / Compartilhar");
-        botoes[0].trigger("click");
-        expect(tela.emitted("compartilhar")).toBeTruthy();
+    test("abre já na foto que a pessoa tocou na grade", async () => {
+        abrir({ inicio: 2 });
+        await flushPromises();
+
+        expect(rolouAte).toHaveLength(1);
+        expect((rolouAte[0] as HTMLElement).dataset.foto).toBe("2");
     });
 
-    test("sem suporte o botão é Baixar e salva direto", () => {
-        // No computador o navigator.share não existe: o botão não pode ficar lá dando erro.
-        const tela = abrir({ foto, podeCompartilhar: false });
-        const botoes = tela.findAll("button").filter((b) => b.text() !== "×");
-        expect(botoes).toHaveLength(1);
-        expect(botoes[0].text()).toBe("Baixar");
-        botoes[0].trigger("click");
-        expect(tela.emitted("salvar")).toBeTruthy();
+    test("cada foto tem o seu baixar", async () => {
+        const tela = abrir();
+
+        await tela.get("[aria-label='Baixar a foto 2']").trigger("click");
+
+        expect(tela.emitted("baixar")).toEqual([[1]]);
     });
 
-    test("aguardando o segundo toque do iPhone, o rótulo avisa", () => {
-        const tela = abrir({ foto, podeCompartilhar: true, prontaParaCompartilhar: true });
-        expect(tela.text()).toContain("Toque de novo para compartilhar");
+    test("sem suporte a mandar arquivo, não há botão de compartilhar", () => {
+        // No computador o navigator.share não aceita anexo: o botão ficaria lá dando erro.
+        const tela = abrir({ podeCompartilhar: false });
+        expect(tela.find("[aria-label^='Compartilhar']").exists()).toBe(false);
     });
 
-    test("fechar emite o evento e desfaz a entrada que a foto pôs no histórico", async () => {
-        const tela = abrir({ foto, podeCompartilhar: false });
+    test("com suporte, compartilhar avisa qual foto", async () => {
+        const tela = abrir({ podeCompartilhar: true });
+
+        await tela.get("[aria-label='Compartilhar a foto 3']").trigger("click");
+
+        expect(tela.emitted("compartilhar")).toEqual([[2]]);
+    });
+
+    test("aguardando o segundo toque do iPhone, só a foto certa avisa", () => {
+        const tela = abrir({ podeCompartilhar: true, prontaParaCompartilhar: 1 });
+
+        const avisos = tela.findAll("[data-foto]").filter((item) => item.text().includes("Toque de novo"));
+        expect(avisos).toHaveLength(1);
+        expect(avisos[0].attributes("data-foto")).toBe("1");
+    });
+
+    test("com mais fotos no evento, o fim da lista oferece Ver mais", async () => {
+        const tela = abrir({ temMais: true });
+
+        await tela.get("[data-ver-mais]").trigger("click");
+
+        expect(tela.emitted("carregarMais")).toHaveLength(1);
+    });
+
+    test("sem mais fotos, a lista termina sem botão", () => {
+        expect(abrir({ temMais: false }).find("[data-ver-mais]").exists()).toBe(false);
+    });
+
+    test("voltar fecha e desfaz a entrada que a lista pôs no histórico", async () => {
+        const tela = abrir();
         const esperando = voltou();
 
-        await tela.find("[aria-label='Fechar']").trigger("click");
+        await tela.get("[aria-label='Voltar']").trigger("click");
         await esperando;
         await flushPromises();
 
@@ -69,10 +115,10 @@ describe("FotoAberta", () => {
         expect(window.history.state?.fotoAberta).toBeFalsy();
     });
 
-    test("o voltar do celular fecha a foto em vez de sair da tela", async () => {
+    test("o voltar do celular fecha a lista em vez de sair da tela", async () => {
         // No Android o gesto de voltar é o jeito natural de sair da tela cheia: sem uma
         // entrada própria no histórico, ele sairia do resultado e levaria de volta à câmera.
-        const tela = abrir({ foto, podeCompartilhar: false });
+        const tela = abrir();
         expect(window.history.state?.fotoAberta).toBe(true);
         const esperando = voltou();
 
@@ -81,29 +127,5 @@ describe("FotoAberta", () => {
         await flushPromises();
 
         expect(tela.emitted("fechar")).toBeTruthy();
-    });
-
-    test("deslizar para a esquerda pede a próxima foto", async () => {
-        const tela = abrir({ foto, podeCompartilhar: false });
-        const area = tela.find("[data-deslize]");
-
-        await area.trigger("touchstart", toque(300));
-        await area.trigger("touchend", toque(120));
-
-        expect(tela.emitted("proxima")).toBeTruthy();
-        expect(tela.emitted("anterior")).toBeFalsy();
-    });
-
-    test("deslizar para a direita pede a anterior; um toque parado não troca", async () => {
-        const tela = abrir({ foto, podeCompartilhar: false });
-        const area = tela.find("[data-deslize]");
-
-        await area.trigger("touchstart", toque(120));
-        await area.trigger("touchend", toque(300));
-        await area.trigger("touchstart", toque(200));
-        await area.trigger("touchend", toque(205));
-
-        expect(tela.emitted("anterior")).toHaveLength(1);
-        expect(tela.emitted("proxima")).toBeFalsy();
     });
 });

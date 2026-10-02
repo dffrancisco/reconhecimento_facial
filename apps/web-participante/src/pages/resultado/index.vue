@@ -2,6 +2,7 @@
 import { computed, nextTick } from "vue";
 import { useRoute } from "vue-router";
 import BotaoPilula from "../../componentes/BotaoPilula.vue";
+import BotaoVoltar from "../../componentes/BotaoVoltar.vue";
 import FaixaPatrocinadores from "../../componentes/FaixaPatrocinadores.vue";
 import FotoAberta from "../../componentes/FotoAberta.vue";
 import GradeFotos from "../../componentes/GradeFotos.vue";
@@ -15,7 +16,11 @@ const titulo = computed(() => (state.fotos.length === 1 ? "1 foto sua" : `${stat
 </script>
 
 <template>
-    <main class="tela-foto px-5 py-7">
+    <main class="tela-foto px-5 pb-7">
+        <!-- Sem evento conhecido (link reaberto com o prazo vencido) não há para onde voltar. -->
+        <header class="barra-topo">
+            <BotaoVoltar v-if="actions.temCaminhoParaCamera()" @click="actions.voltar()" />
+        </header>
         <p v-if="state.carregando" class="titulo">Abrindo suas fotos…</p>
 
         <section v-else-if="state.mensagem && state.fotos.length === 0" class="flex min-h-[70dvh] flex-col justify-center">
@@ -82,15 +87,14 @@ const titulo = computed(() => (state.fotos.length === 1 ? "1 foto sua" : `${stat
         </template>
 
         <FotoAberta
-            v-if="state.aberta !== null && state.fotos[state.aberta]"
-            :foto="state.fotos[state.aberta]"
+            v-if="state.aberta !== null"
+            :fotos="state.fotos"
+            :inicio="state.aberta"
             :pode-compartilhar="actions.podeCompartilhar()"
-            :pronta-para-compartilhar="actions.prontaParaCompartilhar()"
+            :pronta-para-compartilhar="state.compartilharPronto"
             @fechar="actions.fechar()"
-            @salvar="actions.salvar(state.aberta!)"
-            @compartilhar="actions.compartilhar(state.aberta!)"
-            @proxima="actions.proxima()"
-            @anterior="actions.anterior()"
+            @baixar="actions.salvar"
+            @compartilhar="actions.compartilhar"
         />
     </main>
 </template>

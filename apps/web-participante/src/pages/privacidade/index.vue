@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useRouter } from "vue-router";
+import BotaoVoltar from "../../componentes/BotaoVoltar.vue";
 
 // Termo versionado: a versão exibida aqui é a que a busca grava em `versao_termo`.
 const VERSAO = "v1";
@@ -11,7 +12,10 @@ const temDeOndeVoltar = Boolean(router.options.history.state.back);
 </script>
 
 <template>
-    <main class="tela-largada px-5 py-8">
+    <main class="tela-largada px-5 pb-8" :class="{ 'pt-8': !temDeOndeVoltar }">
+        <header v-if="temDeOndeVoltar" class="barra-topo">
+            <BotaoVoltar @click="router.back()" />
+        </header>
         <p class="rotulo">Privacidade · {{ VERSAO }}</p>
         <h1 class="titulo mt-2">Como cuidamos da sua selfie</h1>
 
@@ -44,8 +48,5 @@ const temDeOndeVoltar = Boolean(router.options.history.state.back);
             </p>
         </section>
 
-        <button v-if="temDeOndeVoltar" type="button" class="pilula-vazada mt-6" @click="router.back()">
-            Voltar
-        </button>
     </main>
 </template>

@@ -3,6 +3,9 @@ import { actions, state } from "./home";
 import { getEvento } from "../../ts/galeriaPublica";
 import { memoriaDoEvento } from "../../ts/memoria";
 import { ErroDaApi } from "../../ts/api";
+import { flushPromises, mount } from "@vue/test-utils";
+import { createMemoryHistory, createRouter } from "vue-router";
+import Home from "./index.vue";
 
 vi.mock("../../ts/galeriaPublica", () => ({ getEvento: vi.fn(), getGaleria: vi.fn() }));
 vi.mock("../../ts/memoria", () => ({ memoriaDoEvento: vi.fn() }));
@@ -18,7 +21,16 @@ const evento = {
         { dia: "2026-09-26", qtd: 1234 },
         { dia: "2026-09-27", qtd: 987 },
     ],
+    capa: null as string | null,
 };
+
+async function montarHome() {
+    const rotas = createRouter({ history: createMemoryHistory(), routes: [{ path: "/e/:slug", component: Home }] });
+    await rotas.push("/e/correndo-com-elas");
+    const tela = mount(Home, { global: { plugins: [rotas] } });
+    await flushPromises();
+    return tela;
+}
 
 describe("home do evento", () => {
     beforeEach(() => {
@@ -71,5 +83,20 @@ describe("home do evento", () => {
 
         expect(state.mensagem).toContain("não encontrado");
         expect(state.evento).toBeNull();
+    });
+
+    test("com capa, a foto do evento fica por baixo do degradê, sem ser lida pelo leitor de tela", async () => {
+        vi.mocked(getEvento).mockResolvedValue({ ...evento, capa: "/arquivos/7/x_thumb.jpg?md5=x" });
+
+        const capa = (await montarHome()).get("[data-capa]");
+
+        expect(capa.attributes("src")).toBe("/arquivos/7/x_thumb.jpg?md5=x");
+        expect(capa.attributes("alt")).toBe("");
+    });
+
+    test("sem foto publicada ainda, fica só o degradê", async () => {
+        vi.mocked(getEvento).mockResolvedValue(evento);
+
+        expect((await montarHome()).find("[data-capa]").exists()).toBe(false);
     });
 });

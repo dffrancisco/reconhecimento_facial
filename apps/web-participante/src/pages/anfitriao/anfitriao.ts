@@ -1,5 +1,4 @@
 import { reactive } from "vue";
-import type { FotoNaGrade } from "../../componentes/interfaces";
 import { baixarArquivo } from "../../ts/arquivos";
 import { esperarPartes } from "../../ts/zip";
 import type { FotoDaGaleria } from "./interfaces";
@@ -60,23 +59,9 @@ export const actions = {
         state.aberta = null;
     },
 
-    proxima(): void {
-        if (state.aberta !== null) state.aberta = Math.min(state.aberta + 1, state.fotos.length - 1);
-    },
-
-    anterior(): void {
-        if (state.aberta !== null) state.aberta = Math.max(state.aberta - 1, 0);
-    },
-
-    // A foto aberta mostra a versão web (2048 px), não o thumb da grade.
-    fotoAberta(): FotoNaGrade | null {
-        const foto = state.aberta === null ? undefined : state.fotos[state.aberta];
-        return foto ? { id_foto: foto.id_foto, thumb: foto.web } : null;
-    },
-
     // `dl=1` faz o nginx responder como anexo; fica fora da assinatura, que cobre só o caminho.
-    salvar(): void {
-        const foto = state.aberta === null ? undefined : state.fotos[state.aberta];
+    salvar(indice: number): void {
+        const foto = state.fotos[indice];
         if (foto) baixarArquivo(`${foto.web}&dl=1`);
     },
 

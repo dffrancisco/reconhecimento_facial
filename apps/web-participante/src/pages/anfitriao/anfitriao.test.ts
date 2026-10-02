@@ -88,14 +88,14 @@ describe("galeria do anfitrião", () => {
         expect(state.mensagem).toContain("Volte");
     });
 
-    test("tocar numa foto abre a versão grande e salvar baixa como anexo", async () => {
+    test("baixar uma foto da lista leva a versão grande como anexo", async () => {
         vi.mocked(getGaleria).mockResolvedValue({ evento: "Corrida", fotos: fotos(3) });
         await actions.init("chave-abc");
 
         actions.abrir(1);
-        actions.salvar();
+        actions.salvar(2);
 
-        expect(actions.fotoAberta()?.thumb).toBe(fotos(3)[1].web);
-        expect(baixarArquivo).toHaveBeenCalledWith(`${fotos(3)[1].web}&dl=1`);
+        expect(state.aberta).toBe(1);
+        expect(baixarArquivo).toHaveBeenCalledWith(`${fotos(3)[2].web}&dl=1`);
     });
 });

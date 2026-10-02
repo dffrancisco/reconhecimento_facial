@@ -26,6 +26,35 @@ describe("tela do evento", () => {
         state.fluxo = null;
     });
 
+    test("Rastrear só libera com o visto e pelo menos uma selfie", () => {
+        expect(actions.podeRastrear()).toBe(false);
+        state.consentiu = true;
+        expect(actions.podeRastrear()).toBe(false);
+        state.selfies = [new File([new Uint8Array([1])], "selfie.jpg", { type: "image/jpeg" })];
+        expect(actions.podeRastrear()).toBe(true);
+    });
+
+    test("voltar desliga a câmera e leva à página inicial do evento", () => {
+        const { trilha, fluxo } = fluxoFalso();
+        state.fluxo = fluxo;
+        state.slug = "corrida-da-serra";
+        state.chaveAcesso = "";
+
+        actions.voltar();
+
+        expect(trilha.stop).toHaveBeenCalled();
+        expect(irPara).toHaveBeenLastCalledWith("/e/corrida-da-serra");
+    });
+
+    test("voltar de evento privado usa a chave de acesso", () => {
+        state.slug = "";
+        state.chaveAcesso = "CHAVE123";
+
+        actions.voltar();
+
+        expect(irPara).toHaveBeenLastCalledWith("/p/CHAVE123");
+    });
+
     test("começa sem consentimento: o disparo não pode funcionar", () => {
         expect(state.consentiu).toBe(false);
         expect(actions.podeDisparar()).toBe(false);

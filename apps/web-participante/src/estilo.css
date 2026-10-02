@@ -12,6 +12,12 @@
     --largada-meio: #f7414f;
     --largada-fim: #c81d5a;
     --largada-foto: #0e0e12;
+    /* Botões sobre a foto: cinza a 50%, que aparece tanto na foto clara quanto na escura. */
+    --vidro: rgb(118 118 128 / 0.5);
+    /* Texto do botão branco da câmera: escuro com um fundo do magenta da marca. */
+    --tinta: #1d1620;
+    /* Véu da câmera fora do oval: o rosto é a única parte nítida da tela. */
+    --veu: rgb(14 14 18 / 0.62);
 }
 
 /* Em @layer components para que as utilidades do Tailwind (py-8, px-5, w-auto…) valham
@@ -85,14 +91,185 @@
         font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
     }
 
-    /* Nome do evento na home: o "número de peito" da identidade. */
+    /* Nome do evento na home: o "número de peito" da identidade — estreito, pesado e
+       grande, como o número impresso no peito de quem corre. */
     .display {
         font-family: "Bricolage Grotesque Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
-        font-size: clamp(2rem, 9vw, 2.9rem);
+        /* 14vw cabe "demonstração" inteira num celular de 360 px; palavra maior que isso
+           hifeniza (lang pt-BR) em vez de quebrar no meio de uma letra. */
+        font-size: clamp(2.75rem, 14vw, 5.5rem);
+        font-stretch: 75%;
         font-weight: 800;
-        line-height: 1.02;
-        letter-spacing: -0.03em;
-        overflow-wrap: anywhere;
+        line-height: 0.9;
+        letter-spacing: -0.01em;
+        hyphens: auto;
+        overflow-wrap: break-word;
+        text-wrap: balance;
+    }
+
+    /* Home: a foto do evento por baixo e o degradê a 90% por cima. A foto em cinza vira
+       textura de luz e sombra, sem sujar as cores da marca. */
+    .capa-evento {
+        position: absolute;
+        inset: 0;
+        z-index: -2;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        filter: grayscale(1) contrast(1.35) brightness(0.95);
+        opacity: 0;
+        transition: opacity 0.9s ease;
+    }
+
+    .capa-evento[data-carregada] {
+        opacity: 1;
+    }
+
+    .veu-largada {
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        background: linear-gradient(168deg, var(--largada-inicio) 0%, var(--largada-meio) 52%, var(--largada-fim) 100%);
+        opacity: 0.9;
+    }
+
+    /* Linha do topo com a seta de voltar; a margem negativa alinha a ponta da seta ao
+       texto, já que a área de toque passa do desenho. */
+    .barra-topo {
+        display: flex;
+        align-items: center;
+        min-height: 3.5rem;
+        margin-left: -0.6rem;
+    }
+
+    .botao-voltar {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.75rem;
+        height: 2.75rem;
+        color: #fff;
+        border-radius: 0.7rem;
+    }
+
+    .botao-voltar-vidro,
+    .botao-foto {
+        background: var(--vidro);
+    }
+
+    .botao-foto {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.75rem;
+        height: 2.75rem;
+        border-radius: 0.7rem;
+        color: #fff;
+    }
+
+    .botao-foto-pronto {
+        background: #fff;
+        color: var(--largada-fim);
+    }
+
+    /* Câmera: o box-shadow do oval é o véu da tela inteira, com o furo exato do rosto. */
+    .oval-selfie {
+        position: relative;
+        width: min(61vw, 17rem);
+        aspect-ratio: 0.74;
+        border-radius: 50%;
+        border: 3px dashed rgb(255 255 255 / 0.92);
+        box-shadow: 0 0 0 200vmax var(--veu);
+    }
+
+    /* Clarão de obturador a cada selfie tirada: a resposta ao toque de que a foto entrou. */
+    .oval-selfie::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        background: #fff;
+        opacity: 0;
+    }
+
+    .oval-selfie[data-clarao]::after {
+        animation: clarao 0.4s ease-out;
+    }
+
+    .contador-selfies {
+        font-family: "Bricolage Grotesque Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+        font-size: 1.75rem;
+        font-stretch: 75%;
+        font-weight: 800;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .botao-rastrear {
+        min-height: 3rem;
+        width: min(63vw, 16rem);
+        border-radius: 0.9rem;
+        background: #fff;
+        color: var(--tinta);
+        font-size: 1.2rem;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+    }
+
+    .botao-rastrear:disabled {
+        background: rgb(255 255 255 / 0.32);
+        color: rgb(255 255 255 / 0.75);
+    }
+
+    /* Caixa do "Aceito os termos": quadrado branco do desenho, marcado no magenta da marca. */
+    .caixa-termos {
+        appearance: none;
+        flex-shrink: 0;
+        width: 1.25rem;
+        height: 1.25rem;
+        border-radius: 0.3rem;
+        background: #fff;
+        display: grid;
+        place-content: center;
+    }
+
+    .caixa-termos:checked::before {
+        content: "";
+        width: 0.7rem;
+        height: 0.7rem;
+        background: var(--largada-fim);
+        clip-path: polygon(14% 52%, 0 66%, 38% 100%, 100% 22%, 86% 8%, 38% 72%);
+    }
+
+    .caixa-termos:focus-visible,
+    .botao-voltar:focus-visible,
+    .botao-foto:focus-visible,
+    .botao-rastrear:focus-visible {
+        outline: 2px solid #fff;
+        outline-offset: 2px;
+    }
+
+    /* Foto aberta: uma embaixo da outra, cada uma com o seu formato. */
+    .foto-da-lista {
+        position: relative;
+        overflow: hidden;
+        border-radius: 1.1rem;
+        background: rgb(255 255 255 / 0.06);
+        scroll-margin-top: calc(env(safe-area-inset-top) + 0.75rem);
+    }
+
+    .foto-da-lista-web {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        opacity: 0;
+        transition: opacity 0.35s ease;
+    }
+
+    .foto-da-lista-web[data-carregada] {
+        opacity: 1;
     }
 
     /* Títulos de tela ("N fotos suas", "Todas as fotos"): a mesma família, no tamanho do .titulo. */
@@ -118,9 +295,39 @@
     }
 }
 
-/* Os pontinhos do "Procurando você" são a única animação contínua do app. */
+@keyframes clarao {
+    0% {
+        opacity: 0.85;
+    }
+    100% {
+        opacity: 0;
+    }
+}
+
+@keyframes contar {
+    0% {
+        transform: scale(1.5);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+.contador-selfies-novo {
+    animation: contar 0.3s ease-out;
+}
+
+/* Os pontinhos do "Procurando você" são a única animação contínua do app; o clarão e o
+   contador respondem ao toque, mas também saem para quem pediu menos movimento. */
 @media (prefers-reduced-motion: reduce) {
-    .animate-pulse {
+    .animate-pulse,
+    .oval-selfie[data-clarao]::after,
+    .contador-selfies-novo {
         animation: none;
+    }
+
+    .capa-evento,
+    .foto-da-lista-web {
+        transition: none;
     }
 }
