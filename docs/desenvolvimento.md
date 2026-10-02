@@ -160,10 +160,10 @@ Com o compose de dev no ar, um evento ingerido e a tela do participante rodando 
    - A galeria abre com dois chips no topo (um para cada dia, com contagem).
    - Trocar de dia zera a posição da grade.
    - Role para baixo e clique em "Ver mais fotos" para paginar.
-   - Clique numa foto para abrir em tela cheia: navegue com swipe horizontal e veja o botão único "Salvar / Compartilhar" na barra inferior.
+   - Clique numa foto: as fotos abrem uma embaixo da outra, já na foto tocada, e rolam para baixo. Cada uma tem os botões de baixar e (no celular) compartilhar no canto, e a seta de voltar fica no topo.
 
-4. Volte à home ("Voltar") e clique em "Buscar minhas fotos":
-   - Tire uma selfie (ou escolha da galeria), aperte "Buscar".
+4. Volte à home (seta no topo) e clique em "Buscar minhas fotos":
+   - Marque "Aceito os termos", tire de 1 a 3 selfies (o contador sobe a cada uma) e aperte "Rastrear Foto". Ou escolha da galeria.
    - Veja o resultado com as fotos em que você aparece.
 
 5. Feche a aba do navegador e reabra `http://localhost:8080/#/e/<slug>`:
@@ -174,9 +174,11 @@ Com o compose de dev no ar, um evento ingerido e a tela do participante rodando 
    - Se a selfie está guardada na memória (o caso normal), o botão vira "Buscando fotos novas…" e reenvia automaticamente a mesma selfie, sem abrir tela nenhuma — o resultado recarrega com um token novo.
    - Se o servidor recusar a selfie guardada, aparece "Tirar outra selfie" ali mesmo no resultado, levando à câmera. Para trocar de selfie sem esperar a recusa, volte à home: o botão lá é "Buscar com outra selfie" quando há memória lembrada no aparelho (busca anterior) ou "Buscar minhas fotos" quando não há.
 
-7. De volta na galeria (ou resultado), abra uma foto e clique em "Salvar / Compartilhar":
-   - No navegador desktop, abre um diálogo de download.
-   - No celular (especialmente iPhone), abre a folha do sistema nativa (share sheet), com opções como "Salvar imagem" e compartilhamento social.
+7. De volta na galeria (ou resultado), abra uma foto:
+   - "Baixar" (seta para baixo) baixa a versão grande como arquivo. No iPhone ela vai para o app Arquivos.
+   - "Compartilhar" (seta curva) só aparece no celular e abre a folha do sistema, que no iPhone tem "Salvar imagem" — é o caminho para a foto cair na galeria.
+
+8. Seta de voltar: a câmera, "Todas as fotos" e o resultado voltam para a home do evento; a privacidade volta para a tela de onde veio. A home e a galeria do anfitrião não têm seta, porque são a porta de entrada do link.
 
 ## Admin
 
