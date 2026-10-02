@@ -130,7 +130,7 @@ Edite o `.env.estacao`:
 | `VPS_URL` | `https://fotoadmin.taap.com.br` |
 | `OPERADOR_SEGREDO` | o da estação |
 | `PORTA_LAN` | `8090` |
-| `ENDERECO_LAN` | `http://<IP deste computador na rede>:8090`. Em casa, hoje: `http://192.168.100.18:8090` |
+| `ENDERECO_LAN` | `http://<IP deste computador na rede>:8090`. Em casa, hoje: `http://192.168.100.18:8090`. A estação manda esse endereço no sinal de cada minuto, e o admin mostra o link do painel no bloco "Links" do evento. |
 | `ENDERECO_TUNEL` | deixe vazio (`ENDERECO_TUNEL=`) enquanto não houver túnel. Com o valor de exemplo, o painel mostraria um link que não existe. |
 
 O `.env.estacao` não vai para o git.
