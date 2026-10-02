@@ -1,12 +1,14 @@
 import { reactive } from "vue";
+import { copiarTexto } from "../../ts/copiar";
 import { fimAntesDoInicio } from "../../ts/datas";
-import type { DadosEdicao, Evento, FormDados, Fotografo, Vinculo } from "./interfaces";
+import type { DadosEdicao, Evento, FormDados, Fotografo, SituacaoEstacao, Vinculo } from "./interfaces";
 import {
     criarFotografo,
     desvincularFotografo,
     editarEvento,
     listarFotografos,
     listarVinculos,
+    obterEstacao,
     obterEvento,
     subirMarcaDagua,
     vincularFotografo,
@@ -50,6 +52,9 @@ function dadosDoForm(f: FormDados): DadosEdicao {
     };
 }
 
+const NOME_DO_LINK = { participante: "do participante", anfitriao: "do anfitrião", estacao: "da estação" };
+const COPIADO_MS = 2000;
+
 const mensagem = (erro: unknown, padrao: string) => (erro instanceof Error ? erro.message : padrao);
 
 function estadoInicial() {
@@ -66,6 +71,9 @@ function estadoInicial() {
         erroMarca: "",
         qrGrande: "",
         mensagemLinks: "",
+        // Qual botão acabou de copiar: só ele vira "Copiado ✓".
+        copiado: "",
+        estacao: undefined as SituacaoEstacao | null | undefined,
         vinculos: [] as Vinculo[],
         fotografos: [] as Fotografo[],
         idParaAdicionar: 0,
@@ -86,7 +94,7 @@ export const actions = {
             const evento = await obterEvento(idEvento);
             state.evento = evento;
             state.form = formDoEvento(evento);
-            await actions.carregarFotografos();
+            await Promise.all([actions.carregarFotografos(), actions.carregarEstacao()]);
         } catch (erro) {
             state.erro = mensagem(erro, "Não conseguimos abrir o evento.");
         } finally {
@@ -127,12 +135,24 @@ export const actions = {
         }
     },
 
-    async copiar(texto: string): Promise<void> {
+    // A estação é um extra da página: sem resposta, a linha dela some e o resto segue.
+    async carregarEstacao(): Promise<void> {
         try {
-            await navigator.clipboard.writeText(texto);
-            state.mensagemLinks = "Link copiado.";
+            state.estacao = await obterEstacao();
         } catch {
-            // Fora de HTTPS o navegador não libera a área de transferência: o link está na tela.
+            state.estacao = undefined;
+        }
+    },
+
+    async copiar(chave: keyof typeof NOME_DO_LINK, texto: string): Promise<void> {
+        if (await copiarTexto(texto)) {
+            state.copiado = chave;
+            state.mensagemLinks = `Link ${NOME_DO_LINK[chave]} copiado.`;
+            setTimeout(() => {
+                if (state.copiado === chave) state.copiado = "";
+            }, COPIADO_MS);
+        } else {
+            state.copiado = "";
             state.mensagemLinks = "O navegador não deixou copiar. Selecione o link e copie à mão.";
         }
     },

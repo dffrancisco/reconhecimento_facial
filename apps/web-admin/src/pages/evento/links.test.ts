@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import { createMemoryHistory, createRouter } from "vue-router";
 import PaginaEvento from "./index.vue";
-import { obterEvento } from "./services/evento.service";
+import { obterEstacao, obterEvento } from "./services/evento.service";
 import { entrarComo } from "../../ts/sessao";
 import type { Evento } from "./interfaces";
 
@@ -15,6 +15,7 @@ vi.mock("./services/evento.service", () => ({
     criarFotografo: vi.fn(),
     vincularFotografo: vi.fn(),
     desvincularFotografo: vi.fn(),
+    obterEstacao: vi.fn(),
 }));
 
 function eventoFalso(parcial: Partial<Evento> = {}): Evento {
@@ -55,6 +56,11 @@ beforeEach(() => {
     localStorage.clear();
     entrarComo({ token: "tok", nome: "Ana" });
     vi.mocked(obterEvento).mockResolvedValue(eventoFalso());
+    vi.mocked(obterEstacao).mockResolvedValue({
+        painel: "http://192.168.100.18:8090/#/estacao",
+        painel_tunel: null,
+        ultimo_sinal_em: "2026-10-02T20:00:00.000Z",
+    });
 });
 
 describe("página do evento — links", () => {
@@ -66,20 +72,72 @@ describe("página do evento — links", () => {
         expect(tela.findAll("[data-bloco=links] svg").length).toBe(2);
     });
 
-    test("copiar põe o link na área de transferência; sem permissão, explica", async () => {
+    test("copiar põe o link na área de transferência e diz qual foi copiado", async () => {
         const escrever = vi.fn().mockResolvedValue(undefined);
         Object.defineProperty(navigator, "clipboard", { value: { writeText: escrever }, configurable: true });
         const tela = await abrir();
 
         await tela.get("[data-acao=copiar-participante]").trigger("click");
         await flushPromises();
-        expect(escrever).toHaveBeenCalledWith("http://localhost:8080/#/e/corrida-da-serra");
-        expect(tela.text()).toContain("Link copiado.");
+        expect(escrever).toHaveBeenLastCalledWith("http://localhost:8080/#/e/corrida-da-serra");
+        expect(tela.text()).toContain("Link do participante copiado.");
 
-        escrever.mockRejectedValue(new Error("negado"));
+        // Com a mesma frase para os dois, o segundo clique parecia não ter feito nada.
         await tela.get("[data-acao=copiar-anfitriao]").trigger("click");
         await flushPromises();
+        expect(escrever).toHaveBeenLastCalledWith("http://localhost:8080/#/a/anf123");
+        expect(tela.text()).toContain("Link do anfitrião copiado.");
+    });
+
+    test("o botão clicado vira 'Copiado ✓'; o outro continua 'Copiar'", async () => {
+        Object.defineProperty(navigator, "clipboard", { value: { writeText: vi.fn().mockResolvedValue(undefined) }, configurable: true });
+        const tela = await abrir();
+
+        await tela.get("[data-acao=copiar-anfitriao]").trigger("click");
+        await flushPromises();
+
+        expect(tela.get("[data-acao=copiar-anfitriao]").text()).toBe("Copiado ✓");
+        expect(tela.get("[data-acao=copiar-participante]").text()).toBe("Copiar");
+    });
+
+    test("quando nada consegue copiar, explica", async () => {
+        Object.defineProperty(navigator, "clipboard", { value: undefined, configurable: true });
+        document.execCommand = vi.fn(() => false);
+        const tela = await abrir();
+
+        await tela.get("[data-acao=copiar-anfitriao]").trigger("click");
+        await flushPromises();
+
         expect(tela.text()).toContain("O navegador não deixou copiar. Selecione o link e copie à mão.");
+    });
+
+    test("a estação aparece com o link do painel, para abrir em outra aba ou copiar", async () => {
+        const tela = await abrir();
+
+        const linha = tela.get("[data-link=estacao]");
+        expect(linha.text()).toContain("http://192.168.100.18:8090/#/estacao");
+        const abrirPainel = linha.get("a[data-acao=abrir-estacao]");
+        expect(abrirPainel.attributes("href")).toBe("http://192.168.100.18:8090/#/estacao");
+        expect(abrirPainel.attributes("target")).toBe("_blank");
+        expect(linha.find("[data-acao=copiar-estacao]").exists()).toBe(true);
+    });
+
+    test("estação sem endereço configurado diz o que configurar", async () => {
+        vi.mocked(obterEstacao).mockResolvedValue({ painel: null, painel_tunel: null, ultimo_sinal_em: "2026-10-02T20:00:00.000Z" });
+        const tela = await abrir();
+
+        expect(tela.get("[data-link=estacao]").text()).toContain("ENDERECO_LAN");
+        expect(tela.find("[data-acao=abrir-estacao]").exists()).toBe(false);
+    });
+
+    test("estação que nunca deu sinal avisa, e a falha na consulta não derruba a página", async () => {
+        vi.mocked(obterEstacao).mockResolvedValue(null);
+        let tela = await abrir();
+        expect(tela.get("[data-link=estacao]").text()).toContain("ainda não deu sinal");
+
+        vi.mocked(obterEstacao).mockRejectedValue(new Error("fora do ar"));
+        tela = await abrir();
+        expect(tela.find("[data-link=participante]").exists()).toBe(true);
     });
 
     test("QR grande abre em tela cheia e fecha no clique", async () => {

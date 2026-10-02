@@ -64,3 +64,10 @@ export interface Vinculo {
     nome: string;
     telefone: string | null;
 }
+
+// Painel da estação, do último sinal dela; painel nulo = estação sem ENDERECO_LAN.
+export interface SituacaoEstacao {
+    painel: string | null;
+    painel_tunel: string | null;
+    ultimo_sinal_em: string;
+}
