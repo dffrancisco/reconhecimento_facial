@@ -33,6 +33,7 @@ before(async () => {
         ESTACAO_CHAVE: "a".repeat(32),
         VPS_URL: "http://127.0.0.1:1",
         VISION_URL: `http://127.0.0.1:${(servidorVision.address() as AddressInfo).port}`,
+        ENDERECO_LAN: "http://192.168.0.10:8090/",
     });
 
     conexao = new ConexaoPostgres();
@@ -78,6 +79,13 @@ test("montarSinal combina fila BullMQ, métricas e GPU", async () => {
     const sinal = await montarSinal(conexao);
     assert.ok(sinal.fila_bullmq);
     assert.deepStrictEqual(sinal.gpu, { vram_usada_mb: 1000, vram_total_mb: 12282, utilizacao: 10 });
+});
+
+test("montarSinal leva o endereço da estação na rede, para o admin abrir o painel", async () => {
+    // A VPS nunca chama a estação: é pelo sinal que ela fica sabendo onde o painel está.
+    const sinal = await montarSinal(conexao);
+    assert.strictEqual(sinal.endereco_lan, "http://192.168.0.10:8090");
+    assert.strictEqual(sinal.endereco_tunel, null);
 });
 
 after(async () => {

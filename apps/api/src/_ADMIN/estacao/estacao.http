@@ -1,0 +1,9 @@
+@vps = http://localhost:3002
+@token = COLE_O_TOKEN_DO_LOGIN_AQUI
+
+### Onde abrir o painel da estação (do último sinal dela)
+POST {{vps}}/api/admin/estacao
+Content-Type: application/json
+Authorization: {{token}}
+
+{ "call": "obterEstacao" }

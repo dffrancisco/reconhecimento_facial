@@ -25,7 +25,14 @@ export async function montarSinal(conexao: ConexaoPostgres): Promise<Record<stri
         lerGpu(),
     ]);
 
-    return { fila_bullmq: { processar_foto: contagemProcessar, publicar_foto: contagemPublicar }, ...metricas, gpu };
+    return {
+        fila_bullmq: { processar_foto: contagemProcessar, publicar_foto: contagemPublicar },
+        ...metricas,
+        gpu,
+        // A VPS nunca chama a estação: é por aqui que o admin sabe onde abrir o painel.
+        endereco_lan: config.enderecoLan,
+        endereco_tunel: config.enderecoTunel,
+    };
 }
 
 export function iniciarSinalPeriodico(): NodeJS.Timeout {
