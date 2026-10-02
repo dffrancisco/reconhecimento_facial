@@ -159,11 +159,28 @@ describe("painel", () => {
 
         expect(t.text()).toContain("http://192.168.0.10/#/?t=tok-ana");
         await t.get("[data-acao=copiar]").trigger("click");
+        await flushPromises();
         expect(escrever).toHaveBeenCalledWith("http://192.168.0.10/#/?t=tok-ana");
+        expect(t.get("[data-acao=copiar]").text()).toBe("Copiado ✓");
+        expect(t.text()).toContain("Link de Ana Souza copiado.");
 
         await t.get("[data-acao=qr-grande]").trigger("click");
         await flushPromises();
         expect(t.find("[data-qr-grande] svg").exists()).toBe(true);
+    });
+
+    test("aberto pelo IP da rede (sem HTTPS), o copiar ainda funciona", async () => {
+        // http://192.168.x.x não é contexto seguro: o navegador nem cria o navigator.clipboard.
+        entrar();
+        Object.defineProperty(navigator, "clipboard", { value: undefined, configurable: true });
+        document.execCommand = vi.fn(() => true);
+        const t = await abrir();
+
+        await t.get("[data-acao=copiar]").trigger("click");
+        await flushPromises();
+
+        expect(document.execCommand).toHaveBeenCalledWith("copy");
+        expect(t.text()).toContain("Link de Ana Souza copiado.");
     });
 
     test("sem endereço configurado, avisa que o link aberto em localhost não serve no celular", async () => {

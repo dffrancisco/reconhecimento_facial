@@ -1,4 +1,5 @@
 import { reactive } from "vue";
+import { copiarTexto } from "../../ts/copiar";
 import { ErroDaApi } from "../../ts/erros";
 import { guardarSessao, lerSessao, sair, type Sessao } from "../../ts/sessao";
 import type { RespostaPainel } from "./interfaces";
@@ -26,6 +27,8 @@ function guardarEscolha(id: number | null): void {
     }
 }
 
+const COPIADO_MS = 2000;
+
 export const state = reactive({
     carregando: true,
     sessao: null as Sessao | null,
@@ -33,6 +36,8 @@ export const state = reactive({
     painel: null as RespostaPainel | null,
     idEventoEscolhido: null as number | null,
     mensagem: "",
+    // Token do fotógrafo cujo link acabou de ser copiado: só o botão dele vira "Copiado ✓".
+    copiado: "",
     qrGrande: "",
     confirmandoEncerrar: false,
     agora: Date.now(),
@@ -151,12 +156,15 @@ export const actions = {
         }
     },
 
-    async copiar(texto: string): Promise<void> {
-        try {
-            await navigator.clipboard.writeText(texto);
-            state.mensagem = "Link copiado.";
-        } catch {
-            // Sem HTTPS o navegador não libera a área de transferência: o link fica visível na tela.
+    async copiar(texto: string, chave: string, quem: string): Promise<void> {
+        if (await copiarTexto(texto)) {
+            state.copiado = chave;
+            state.mensagem = `Link de ${quem} copiado.`;
+            setTimeout(() => {
+                if (state.copiado === chave) state.copiado = "";
+            }, COPIADO_MS);
+        } else {
+            state.copiado = "";
             state.mensagem = "O navegador não deixou copiar. Selecione o link e copie à mão.";
         }
     },

@@ -163,7 +163,14 @@ const maiorEtapa = computed(() => Math.max(1, ...etapas.map((e) => p.value?.fila
                                     <div class="flex flex-wrap items-center gap-2">
                                         <QrCode :texto="linkDe(f.token_upload)" />
                                         <span class="apagado break-all">{{ linkDe(f.token_upload) }}</span>
-                                        <button type="button" class="botao-secundario" data-acao="copiar" @click="actions.copiar(linkDe(f.token_upload))">Copiar</button>
+                                        <button
+                                            type="button"
+                                            class="botao-secundario"
+                                            data-acao="copiar"
+                                            @click="actions.copiar(linkDe(f.token_upload), f.token_upload, f.nome)"
+                                        >
+                                            {{ state.copiado === f.token_upload ? "Copiado ✓" : "Copiar" }}
+                                        </button>
                                         <button type="button" class="botao-secundario" data-acao="qr-grande" @click="actions.abrirQr(linkDe(f.token_upload))">QR grande</button>
                                     </div>
                                     <p v-if="linkTunel(f.token_upload)" class="apagado mt-1 break-all">Pelo túnel (quem está longe): {{ linkTunel(f.token_upload) }}</p>
