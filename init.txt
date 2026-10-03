@@ -1,0 +1,17 @@
+
+docker compose -f docker-compose.dev.yml --profile gpu up -d
+
+npm run dev -w apps/web-participante
+
+run dev -w apps/web-admin
+
+npm run dev -w apps/web-fotografo
+
+login: ana
+senha senha-dev-123
+
+Tela	Endereço
+Participante (página inicial nova do evento)	http://localhost:5173/#/p/848d3b295435a802eea14231fa41ba72fd52dc77
+Galeria do anfitrião	http://localhost:5173/#/a/0ff706eedc22e66d32c9150f6e921e932e3b58bf
+Admin	http://localhost:5175
+Painel da estação	http://localhost:5174/#/estacao
