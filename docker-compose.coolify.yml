@@ -238,13 +238,17 @@ services:
     volumes:
       - originais:/data/originais:ro
       - cache-tensorrt:/cache/tensorrt
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+    # TEMPORÁRIO: o Docker do servidor ainda não tem o NVIDIA Container Toolkit (docs/deploy.md,
+    # passo 2), e pedir a placa sem ele derruba o deploy inteiro, inclusive a parte pública. Sem a
+    # placa, este serviço fica reiniciando e as fotos da estação esperam na etapa de rostos.
+    # Instalado o toolkit, volte este bloco e faça o redeploy.
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
     restart: unless-stopped
 
 volumes:
