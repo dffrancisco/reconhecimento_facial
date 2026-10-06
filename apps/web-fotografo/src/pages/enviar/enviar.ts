@@ -158,7 +158,7 @@ export const actions = {
         } catch (erro) {
             state.bloqueio =
                 erro instanceof ErroDaApi && erro.semConexao
-                    ? "Não conseguimos falar com a estação. Confira o Wi-Fi do evento e recarregue a página."
+                    ? "Não conseguimos falar com a estação. Confira a internet e recarregue a página."
                     : erro instanceof Error
                       ? erro.message
                       : LINK_INVALIDO;

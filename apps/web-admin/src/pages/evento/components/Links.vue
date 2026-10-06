@@ -44,10 +44,9 @@ const links = computed(() => {
                     </button>
                 </div>
                 <p v-if="state.estacao.painel_tunel" class="apagado mt-1 break-all">Pelo túnel (de fora da rede): {{ state.estacao.painel_tunel }}</p>
-                <p class="apagado mt-1">Abre só num aparelho conectado à mesma rede da estação.</p>
             </template>
             <p v-else-if="state.estacao" class="apagado mt-1">
-                A estação não informou o endereço na rede. Configure ENDERECO_LAN no .env.estacao e suba a estação de novo.
+                A estação não informou o endereço. Configure o ENDERECO_LAN dela e suba a estação de novo.
             </p>
             <p v-else class="apagado mt-1">A estação ainda não deu sinal. Ligue a estação com internet: em até 1 minuto o link aparece aqui.</p>
         </div>
