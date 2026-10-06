@@ -3,6 +3,17 @@ server {
     server_name _;
     root /usr/share/nginx/html;
 
+    # /api vai para a API (variável API_UPSTREAM). No Coolify é este bloco que encaminha; na
+    # estação com Traefik próprio (docker-compose.estacao.yml) o Traefik manda /api direto para a API.
+    # O resolver adia a resolução do nome: o nginx sobe mesmo com a API parada.
+    location /api/ {
+        resolver 127.0.0.11 valid=10s;
+        set $api ${API_UPSTREAM};
+        proxy_pass $api;
+        # Um pedaço do envio do fotógrafo tem até UPLOAD_PEDACO_MB (8 MB); o padrão do nginx é 1 MB.
+        client_max_body_size 16m;
+    }
+
     # Página única com rotas em hash: qualquer caminho cai no index. O index nunca fica em
     # cache (é ele que aponta para o build novo); /assets/ tem hash no nome e pode ficar.
     location / {

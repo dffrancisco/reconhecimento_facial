@@ -1,10 +1,17 @@
-# VPS no Coolify (passo a passo em docs/deploy.md).
+# Tudo no servidor do Coolify, com a placa de vídeo (passo a passo em docs/deploy.md).
+#
+# São os dois papéis no mesmo compose, como no docker-compose.dev.yml:
+# - a parte pública (PAPEL=vps): participante, admin e busca por selfie;
+# - a estação (PAPEL=estacao, serviços "-estacao" e "vision-gpu"): recebe as fotos dos
+#   fotógrafos pela internet, acha os rostos na placa e publica na parte pública por dentro
+#   (VPS_URL=http://api:3000), sem passar pela Cloudflare.
 #
 # Diferente do docker-compose.vps.yml, que sobe o próprio Traefik:
 # - o proxy do Coolify cuida das portas 80/443 e do certificado;
 # - as variáveis são preenchidas na tela do Coolify (as com ":?" são obrigatórias);
-# - os dois domínios (participante e admin) vão no serviço `arquivos`, e o nginx dele
-#   encaminha /api para a API. Assim o Coolify não precisa de regra por caminho.
+# - os dois domínios (participante e admin) vão no serviço `arquivos`, e o de envio no
+#   `web-estacao`. O nginx de cada um encaminha /api para a API certa, então o Coolify não
+#   precisa de regra por caminho.
 
 services:
   postgres:
@@ -126,6 +133,120 @@ services:
       - selfies:/data/selfies
     restart: unless-stopped
 
+  # ---------------------------------------------------------------------------------------
+  # Estação. Os nomes da parte pública acima não mudam: o Coolify guarda os volumes pelo nome.
+
+  postgres-estacao:
+    image: pgvector/pgvector:0.8.1-pg16
+    environment:
+      POSTGRES_USER: fotos
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: fotos_estacao
+    volumes:
+      - pg-estacao:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fotos -d fotos_estacao"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+  migrate-estacao:
+    build: { context: ., dockerfile: db/Dockerfile }
+    environment:
+      PAPEL: estacao
+      POSTGRES_HOST: postgres-estacao
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: fotos
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: fotos_estacao
+    depends_on:
+      postgres-estacao: { condition: service_healthy }
+    restart: "no"
+
+  api-estacao:
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    environment: &ambiente-estacao
+      PAPEL: estacao
+      PORTA: "3000"
+      POSTGRES_HOST: postgres-estacao
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: fotos
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: fotos_estacao
+      # O mesmo Redis da parte pública; o prefixo separa as filas.
+      REDIS_URL: redis://redis:6379
+      REDIS_PREFIXO: "fotos:estacao:"
+      ESTACAO_CHAVE: ${ESTACAO_CHAVE:?}
+      # Sincroniza e publica direto na API da parte pública, pela rede interna.
+      VPS_URL: http://api:3000
+      VISION_URL: http://vision-gpu:8000
+      # Assina a sessão do operador no painel (/#/estacao). Diferente do OPERADOR_SEGREDO.
+      OPERADOR_SEGREDO: ${OPERADOR_SEGREDO_ESTACAO:?}
+      # O limite de tentativas de login do painel usa o IP que a Cloudflare informa.
+      CONFIAR_CLOUDFLARE: ${CONFIAR_CLOUDFLARE:-true}
+      # O endereço dos links e QR de upload dos fotógrafos, e do painel no admin.
+      ENDERECO_LAN: https://${DOMINIO_ENVIO:?}
+      UPLOAD_PEDACO_MB: ${UPLOAD_PEDACO_MB:-8}
+      WORKER_CONCORRENCIA: ${WORKER_CONCORRENCIA:-16}
+      # Vazio = núcleos - 2. A parte pública divide a mesma CPU: baixe se a busca ficar lenta no evento.
+      SHARP_CONCORRENCIA: ${SHARP_CONCORRENCIA:-}
+    depends_on:
+      migrate-estacao: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    # Os envios dos fotógrafos chegam em /data/originais/_uploads: no mesmo volume dos
+    # originais, o processamento só renomeia o arquivo, sem copiar.
+    volumes:
+      - originais:/data/originais
+    restart: unless-stopped
+
+  worker-estacao:
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    command: ["node", "dist/worker.js"]
+    # O worker não escuta HTTP: o healthcheck da imagem (GET /test) nunca passaria.
+    healthcheck: { disable: true }
+    environment: *ambiente-estacao
+    depends_on:
+      migrate-estacao: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    volumes:
+      - originais:/data/originais
+      - publicar:/data/publicar
+      - marcas-estacao:/data/marcas
+    restart: unless-stopped
+
+  # Tela do fotógrafo (/#/?t=...) e painel da estação (/#/estacao). No Coolify, o domínio de
+  # envio fica no campo "Domains" deste serviço.
+  web-estacao:
+    build: { context: ., dockerfile: apps/web-fotografo/Dockerfile }
+    environment:
+      API_UPSTREAM: http://api-estacao:3000
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/health"]
+      interval: 10s
+      retries: 5
+    restart: unless-stopped
+
+  vision-gpu:
+    build:
+      context: ./apps/vision-service
+      target: final
+      args:
+        ORT: onnxruntime-gpu[cuda,cudnn]==1.30.0
+    environment:
+      VISION_MODO: gpu
+      VISION_RAIZES: /data/originais
+    volumes:
+      - originais:/data/originais:ro
+      - cache-tensorrt:/cache/tensorrt
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+
 volumes:
   pg-vps:
   redis-vps:
@@ -138,3 +259,9 @@ volumes:
   fotos:
   marcas:
   zips:
+  pg-estacao:
+  # Os originais ficam no servidor (~300 GB num evento de 20 mil fotos) e nada os apaga sozinho.
+  originais:
+  publicar:
+  marcas-estacao:
+  cache-tensorrt:
