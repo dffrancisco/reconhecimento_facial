@@ -226,30 +226,30 @@ services:
       retries: 5
     restart: unless-stopped
 
-  vision-gpu:
-    build:
-      context: ./apps/vision-service
-      target: final
-      args:
-        ORT: onnxruntime-gpu[cuda,cudnn]==1.30.0
-    environment:
-      VISION_MODO: gpu
-      VISION_RAIZES: /data/originais
-    volumes:
-      - originais:/data/originais:ro
-      - cache-tensorrt:/cache/tensorrt
-    # TEMPORÁRIO: o Docker do servidor ainda não tem o NVIDIA Container Toolkit (docs/deploy.md,
-    # passo 2), e pedir a placa sem ele derruba o deploy inteiro, inclusive a parte pública. Sem a
-    # placa, este serviço fica reiniciando e as fotos da estação esperam na etapa de rostos.
-    # Instalado o toolkit, volte este bloco e faça o redeploy.
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
-    restart: unless-stopped
+  # TEMPORÁRIO: fora do compose até o servidor ter o NVIDIA Container Toolkit (docs/deploy.md,
+  # passo 2). Pedir a placa sem ele derruba o deploy inteiro, e montar esta imagem (a maior de
+  # todas) fez o build morrer no meio. Sem ele, as fotos da estação esperam na etapa de rostos.
+  # Instalado o toolkit, descomente o serviço (com o bloco `deploy`) e faça o redeploy.
+  # vision-gpu:
+  #   build:
+  #     context: ./apps/vision-service
+  #     target: final
+  #     args:
+  #       ORT: onnxruntime-gpu[cuda,cudnn]==1.30.0
+  #   environment:
+  #     VISION_MODO: gpu
+  #     VISION_RAIZES: /data/originais
+  #   volumes:
+  #     - originais:/data/originais:ro
+  #     - cache-tensorrt:/cache/tensorrt
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: 1
+  #             capabilities: [gpu]
+  #   restart: unless-stopped
 
 volumes:
   pg-vps:
