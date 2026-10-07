@@ -3,7 +3,7 @@ import path from "node:path";
 import ConexaoPostgres from "../../db/conexaoPostgres";
 import { config } from "../../services/config";
 import { DadosPublicarFoto } from "./i.foto";
-import { situacaoAtual, substituirRostos, upsertFoto } from "./sql.foto";
+import { eventoExiste, situacaoAtual, substituirRostos, upsertFoto } from "./sql.foto";
 
 export interface ArquivosPublicarFoto {
     web: Buffer;
@@ -17,6 +17,9 @@ export default class FotoCtrl {
     async publicarFoto(dados: DadosPublicarFoto, arquivos: ArquivosPublicarFoto): Promise<{ ok: true }> {
         // Foto excluída não ressuscita: a estação não sabe que foi apagada até sincronizar de novo.
         if ((await situacaoAtual(this.conexao, dados.id_evento, dados.hash_arquivo)) === "excluida") return { ok: true };
+        // Todo evento nasce aqui: ausente, só pode ter sido excluído. Aceita e descarta, senão a
+        // estação tentaria de novo para sempre.
+        if (!(await eventoExiste(this.conexao, dados.id_evento))) return { ok: true };
 
         // `init()` já abriu a transação (openTransaction). Se qualquer passo falhar — banco ou
         // disco — marcarErro() garante que o close() do route.foto.ts faça ROLLBACK em vez de

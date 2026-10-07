@@ -21,6 +21,8 @@ export interface Evento {
     ativo: "S" | "N";
     config: ConfigEvento;
     links: { participante: string; anfitriao: string } | null;
+    // Quantas fotos somem se o evento for excluído.
+    qtd_fotos: number;
 }
 
 // Campo numérico apagado chega do v-model como "" (o Vue só converte o que é número).

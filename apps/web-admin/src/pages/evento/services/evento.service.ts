@@ -41,3 +41,8 @@ export function desvincularFotografo(idEventoFotografo: number): Promise<{ ok: t
 export function obterEstacao(): Promise<SituacaoEstacao | null> {
     return chamar("estacao", { call: "obterEstacao" });
 }
+
+// O nome vai junto: a API confere de novo, para a exclusão não depender só da tela.
+export function excluirEvento(idEvento: number, nomeConfirmacao: string): Promise<{ ok: true }> {
+    return chamar("evento", { call: "excluirEvento", id_evento: idEvento, nome_confirmacao: nomeConfirmacao });
+}

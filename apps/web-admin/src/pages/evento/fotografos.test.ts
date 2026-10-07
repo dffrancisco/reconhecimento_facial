@@ -38,6 +38,7 @@ const evento: Evento = {
     ativo: "S",
     config: { limiar: 0.42, exigir_whatsapp: false, marca_dagua: false, organizador: "X", dias_expurgo: 90, validade_resultado_dias: null, max_selfies: 3 },
     links: null,
+    qtd_fotos: 0,
 };
 const ana: Fotografo = { id_fotografo: 1, nome: "Ana Souza", telefone: "+5511911112222" };
 const bruno: Fotografo = { id_fotografo: 2, nome: "Bruno Lima", telefone: null };

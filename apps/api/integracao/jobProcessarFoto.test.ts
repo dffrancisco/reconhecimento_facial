@@ -165,6 +165,17 @@ describe("processarFoto", () => {
     });
 });
 
+test("evento excluído no meio do caminho: termina sem erro e não recria a foto", async () => {
+    // A exclusão apaga o evento da estação; o job que já estava na fila não pode trazê-lo de volta.
+    const idSumido = 990_000_000 + (Date.now() % 1_000_000);
+    const origem = path.join(pastaOrigem, "sumido.jpg");
+    await criarJpegDeTeste(origem, 33);
+
+    await processarFoto({ id_evento: idSumido, id_evento_fotografo: null, hash_arquivo: "e".repeat(64), nome_arquivo: "sumido.jpg", origem, copiar: true });
+
+    assert.strictEqual((await conexao.queryParam("SELECT 1 FROM foto WHERE id_evento = ?", [idSumido])).length, 0);
+});
+
 after(async () => {
     servidorVision?.close();
     await conexao?.close();

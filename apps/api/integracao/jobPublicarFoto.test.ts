@@ -91,6 +91,15 @@ test("lê os rostos locais, envia o multipart e marca como publicada", async () 
         await assert.rejects(() => fs.access(caminhoPublicar(config.raizPublicar, idEvento, hash, tipo)));
 });
 
+test("foto apagada junto com o evento: termina sem erro e não envia nada", async () => {
+    // Antes ela lançava erro, e a fila tentava de novo até 1000 vezes uma foto que não existe mais.
+    ultimoRecebido = undefined;
+
+    await publicarFoto({ id_evento: idEvento, hash_arquivo: "d".repeat(64) });
+
+    assert.strictEqual(ultimoRecebido, undefined);
+});
+
 after(async () => {
     servidorVps?.close();
     await conexao?.close();

@@ -7,14 +7,58 @@ import { chamarVps } from "../services/vpsHttp";
 import { criarFila, criarWorker } from "../services/fila";
 import { PayloadSincronizacao } from "../_ESTACAO/sincronizacao/i.sincronizacao";
 import { registrarSincronizacao } from "../services/sincronizacaoEstacao";
+import { pastaDoEvento } from "../services/caminhos";
+import { slugValido } from "../_ADMIN/evento/regras";
+import { caminhoParcial } from "../_FOTOGRAFO/upload/ctrl.upload";
 
 const NOME_FILA = "sincronizar";
+
+// Evento excluído no VPS: apaga do banco o que a estação tem dele e devolve o que apagar do
+// disco depois do COMMIT. Id que a estação não tem (já apagado, ou nunca veio) não faz nada.
+async function excluirEventosLocais(conexao: ConexaoPostgres, ids: number[]): Promise<string[]> {
+    if (ids.length === 0) return [];
+    const eventos = await conexao.queryParam<{ id_evento: number; slug: string }>(
+        "SELECT id_evento, slug FROM evento WHERE id_evento = ANY(?::int[])",
+        [ids]
+    );
+    if (eventos.length === 0) return [];
+    const presentes = eventos.map((e) => e.id_evento);
+
+    // Um evento grande passa dos 30 s do statement_timeout de sempre.
+    await conexao.executeParamCount("SET LOCAL statement_timeout = '5min'");
+    const uploads = await conexao.queryParam<{ id_upload: number }>(
+        `SELECT u.id_upload FROM upload u JOIN evento_fotografo ef ON ef.id_evento_fotografo = u.id_evento_fotografo
+          WHERE ef.id_evento = ANY(?::int[])`,
+        [presentes]
+    );
+    // `upload` e `foto` apontam para o vínculo e para o evento sem cascade: saem antes deles.
+    await conexao.executeParamCount(
+        "DELETE FROM upload WHERE id_evento_fotografo IN (SELECT id_evento_fotografo FROM evento_fotografo WHERE id_evento = ANY(?::int[]))",
+        [presentes]
+    );
+    await conexao.executeParamCount("DELETE FROM foto WHERE id_evento = ANY(?::int[])", [presentes]);
+    await conexao.executeParamCount("DELETE FROM evento_fotografo WHERE id_evento = ANY(?::int[])", [presentes]);
+    await conexao.executeParamCount("DELETE FROM evento WHERE id_evento = ANY(?::int[])", [presentes]);
+
+    const caminhos: (string | null)[] = uploads.map((u) => caminhoParcial(u.id_upload));
+    for (const ev of eventos) {
+        // Os originais ficam na pasta do slug: um slug fora da regra poderia apontar para a raiz.
+        if (slugValido(ev.slug)) caminhos.push(pastaDoEvento(config.raizOriginais, ev.slug));
+        else console.error(`[Sincronizar] Evento ${ev.id_evento} excluído com slug inválido (${ev.slug}): os originais ficaram no disco.`);
+        caminhos.push(pastaDoEvento(config.raizPublicar, String(ev.id_evento)), path.join(config.raizMarcas, `${ev.id_evento}.png`));
+    }
+    return caminhos.filter((c): c is string => c !== null);
+}
 
 export async function processarSincronizar(conexao: ConexaoPostgres): Promise<void> {
     const payload = (await chamarVps("/api/estacao/sincronizacao", { call: "getSincronizacao" })) as PayloadSincronizacao;
 
+    let paraApagar: string[] = [];
     await conexao.openTransaction();
     try {
+        // Antes dos eventos: um evento novo com o slug de um excluído colidiria com a linha velha.
+        paraApagar = await excluirEventosLocais(conexao, payload.eventos_excluidos ?? []);
+
         for (const op of payload.operadores)
             await conexao.executeParamCount(
                 `INSERT INTO operador (id_operador, nome, login, senha_hash, deletado) VALUES (?, ?, ?, ?, ?)
@@ -53,6 +97,11 @@ export async function processarSincronizar(conexao: ConexaoPostgres): Promise<vo
     } finally {
         await conexao.close();
     }
+
+    for (const caminho of paraApagar)
+        await fs.rm(caminho, { recursive: true, force: true }).catch((erro) =>
+            console.error(`[Sincronizar] Evento excluído, mas ${caminho} ficou no disco:`, (erro as Error).message)
+        );
 
     for (const ev of payload.eventos) {
         if (!ev.marca_dagua_caminho) continue;

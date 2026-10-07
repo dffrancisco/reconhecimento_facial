@@ -28,4 +28,5 @@ export interface LinksEvento {
     anfitriao: string;
 }
 
-export type EventoComLinks = LinhaEvento & { links: LinksEvento | null };
+// `qtd_fotos` vai para a janela da exclusão dizer quantas fotos somem.
+export type EventoComLinks = LinhaEvento & { qtd_fotos: number; links: LinksEvento | null };

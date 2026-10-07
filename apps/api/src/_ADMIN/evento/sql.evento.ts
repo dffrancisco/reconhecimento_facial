@@ -33,8 +33,12 @@ export async function listarEventosSql(conexao: ConexaoPostgres): Promise<LinhaE
     return conexao.queryParam<LinhaEvento>(`SELECT ${COLUNAS} FROM evento WHERE deletado = 'N' ORDER BY criado_em DESC`);
 }
 
-export async function obterEventoSql(conexao: ConexaoPostgres, idEvento: number): Promise<LinhaEvento | undefined> {
-    return conexao.queryOneParam<LinhaEvento>(`SELECT ${COLUNAS} FROM evento WHERE id_evento = ? AND deletado = 'N'`, [idEvento]);
+export async function obterEventoSql(conexao: ConexaoPostgres, idEvento: number): Promise<(LinhaEvento & { qtd_fotos: number }) | undefined> {
+    return conexao.queryOneParam<LinhaEvento & { qtd_fotos: number }>(
+        `SELECT ${COLUNAS}, (SELECT count(*)::int FROM foto f WHERE f.id_evento = evento.id_evento) AS qtd_fotos
+           FROM evento WHERE id_evento = ? AND deletado = 'N'`,
+        [idEvento]
+    );
 }
 
 export async function atualizarEventoSql(
@@ -47,4 +51,35 @@ export async function atualizarEventoSql(
          WHERE id_evento = ?`,
         [dados.nome, dados.data_inicio, dados.data_fim, dados.ativo, dados.privado, dados.chave_acesso, JSON.stringify(dados.config), idEvento]
     );
+}
+
+// FOR UPDATE: a estação publicando uma foto deste evento agora espera a exclusão terminar, e
+// então encontra o evento já apagado (e a foto é descartada).
+export async function travarEvento(conexao: ConexaoPostgres, idEvento: number): Promise<{ nome: string; slug: string } | undefined> {
+    return conexao.queryOneParam<{ nome: string; slug: string }>(
+        "SELECT nome, slug FROM evento WHERE id_evento = ? AND deletado = 'N' FOR UPDATE",
+        [idEvento]
+    );
+}
+
+// A ordem importa: `foto` aponta para `evento_fotografo`, que não tem cascade a partir do evento.
+// Apagada a foto (o cascade leva rosto, numero_peito e busca_foto) e o vínculo, o DELETE do
+// evento leva o resto: busca, arquivo_zip, participante_evento, calibracao, evento_resumo e
+// evento_patrocinador.
+export async function apagarEventoSql(
+    conexao: ConexaoPostgres,
+    idEvento: number,
+    registro: { nome: string; slug: string; idOperador: number }
+): Promise<void> {
+    const [{ qtd }] = await conexao.queryParam<{ qtd: number }>("SELECT count(*)::int AS qtd FROM foto WHERE id_evento = ?", [idEvento]);
+    await conexao.executeParamCount("DELETE FROM foto WHERE id_evento = ?", [idEvento]);
+    await conexao.executeParamCount("DELETE FROM evento_fotografo WHERE id_evento = ?", [idEvento]);
+    await conexao.executeParamCount("INSERT INTO evento_excluido (id_evento, nome, slug, qtd_fotos, id_operador) VALUES (?, ?, ?, ?, ?)", [
+        idEvento,
+        registro.nome,
+        registro.slug,
+        qtd,
+        registro.idOperador,
+    ]);
+    await conexao.executeParamCount("DELETE FROM evento WHERE id_evento = ?", [idEvento]);
 }

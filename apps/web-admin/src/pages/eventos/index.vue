@@ -1,12 +1,18 @@
 <script setup lang="ts">
-import { nextTick } from "vue";
-import { useRouter } from "vue-router";
+import { nextTick, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import Cabecalho from "../../componentes/Cabecalho.vue";
 import { periodo } from "../../ts/datas";
 import { actions, state } from "./eventos";
 
 const roteador = useRouter();
+const rota = useRoute();
 nextTick(() => actions.init());
+
+// Vindo da exclusão de um evento: o aviso aparece uma vez, e o endereço volta a ser só "/",
+// para recarregar a página não avisar de novo.
+const excluido = ref(rota.query.excluido === "1");
+if (excluido.value) roteador.replace({ query: {} });
 </script>
 
 <template>
@@ -17,6 +23,7 @@ nextTick(() => actions.init());
                 <h1 class="text-lg font-extrabold">Eventos</h1>
                 <RouterLink to="/eventos/novo" class="botao" data-acao="novo-evento">Novo evento</RouterLink>
             </div>
+            <p v-if="excluido" class="superficie mt-4 px-3 py-2 text-[var(--sucesso)]" data-aviso="excluido">Evento excluído.</p>
 
             <p v-if="state.carregando" class="apagado mt-4">Carregando…</p>
             <p v-else-if="state.erro" class="mt-4 text-[var(--erro)]">{{ state.erro }}</p>

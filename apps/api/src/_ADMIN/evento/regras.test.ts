@@ -1,6 +1,6 @@
 import { describe, test } from "node:test";
 import assert from "node:assert";
-import { montarLinks, slugRepetido, validarConfig, validarDatas, validarNome } from "./regras";
+import { montarLinks, slugRepetido, slugValido, validarConfig, validarDatas, validarNome } from "./regras";
 
 describe("validarDatas", () => {
     test("início e fim no mesmo dia, ou sem início, valem", () => {
@@ -96,5 +96,15 @@ describe("slugRepetido", () => {
         assert.strictEqual(slugRepetido({ code: "23505", constraint: "evento_slug_key" }), true);
         assert.strictEqual(slugRepetido({ code: "23505", constraint: "evento_chave_anfitriao_key" }), false);
         assert.strictEqual(slugRepetido(new Error("outro")), false);
+    });
+});
+
+describe("slugValido", () => {
+    test("minúsculas, números e hífen no meio", () => {
+        for (const slug of ["casaalves", "corrida-da-serra", "evento-2026"]) assert.strictEqual(slugValido(slug), true, slug);
+    });
+
+    test("recusa vazio, hífen nas pontas ou repetido, maiúscula, barra e ponto", () => {
+        for (const slug of ["", "-a", "a-", "a--b", "Casa", "a/b", "..", "a.b", "a".repeat(81)]) assert.strictEqual(slugValido(slug), false, slug);
     });
 });

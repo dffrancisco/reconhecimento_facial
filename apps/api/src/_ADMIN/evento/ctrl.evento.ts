@@ -5,12 +5,10 @@ import ConexaoPostgres from "../../db/conexaoPostgres";
 import { ErroTratado } from "../../services/erro";
 import { gerarChave } from "../../services/aleatorio";
 import { config } from "../../services/config";
+import { pastaDoEvento } from "../../services/caminhos";
 import { ConfigEvento, EventoComLinks, LinhaEvento } from "./i.evento";
-import { montarLinks, slugRepetido, validarConfig, validarDatas, validarNome } from "./regras";
-import { atualizarEventoSql, inserirEvento, listarEventosSql, obterEventoSql } from "./sql.evento";
-
-const SLUG_VALIDO = /^[a-z0-9]+(-[a-z0-9]+)*$/;
-const SLUG_MAXIMO = 80;
+import { montarLinks, slugRepetido, slugValido, validarConfig, validarDatas, validarNome } from "./regras";
+import { apagarEventoSql, atualizarEventoSql, inserirEvento, listarEventosSql, obterEventoSql, travarEvento } from "./sql.evento";
 
 function exigir(erro: string | null): void {
     if (erro) throw new ErroTratado(erro);
@@ -52,7 +50,7 @@ export default class EventoCtrl {
     }): Promise<LinhaEvento> {
         if (dados.tipo !== "esportivo" && dados.tipo !== "social")
             throw new ErroTratado('tipo deve ser "esportivo" ou "social"');
-        if (typeof dados.slug !== "string" || !SLUG_VALIDO.test(dados.slug) || dados.slug.length > SLUG_MAXIMO)
+        if (!slugValido(dados.slug))
             throw new ErroTratado("O endereço deve ter só letras minúsculas, números e hífen, até 80 caracteres (ex.: corrida-da-serra-2026).");
         exigir(validarNome(dados.nome));
         const dataInicio = dados.data_inicio || null;
@@ -130,6 +128,37 @@ export default class EventoCtrl {
         const normalizado = await sharp(png.data).png().toBuffer();
         await fs.mkdir(config.raizMarcas, { recursive: true });
         await fs.writeFile(path.join(config.raizMarcas, `${idEvento}.png`), normalizado);
+        return { ok: true };
+    }
+
+    // Sem volta: o nome digitado é conferido aqui também, e não só na tela. O banco vai numa
+    // transação própria e o disco só depois do COMMIT: se o rm falhar, sobra arquivo sem dono,
+    // nunca evento sem foto. A estação apaga a parte dela ao ver o id em `eventos_excluidos`.
+    async excluirEvento(idEvento: number, nomeConfirmacao: unknown, idOperador: number): Promise<{ ok: true }> {
+        const transacao = new ConexaoPostgres();
+        await transacao.openTransaction();
+        try {
+            // Um evento grande passa dos 30 s do statement_timeout de sempre.
+            await transacao.executeParamCount("SET LOCAL statement_timeout = '5min'");
+            const evento = await travarEvento(transacao, idEvento);
+            if (!evento) throw new ErroTratado("Evento não encontrado.");
+            if (typeof nomeConfirmacao !== "string" || nomeConfirmacao.trim() !== evento.nome.trim())
+                throw new ErroTratado("O nome digitado não confere com o do evento.");
+            await apagarEventoSql(transacao, idEvento, { ...evento, idOperador });
+        } catch (erro) {
+            transacao.marcarErro();
+            throw erro;
+        } finally {
+            await transacao.close();
+        }
+
+        const id = String(idEvento);
+        for (const alvo of [pastaDoEvento(config.raizFotos, id), pastaDoEvento(config.raizZips, id), path.join(config.raizMarcas, `${id}.png`)]) {
+            if (!alvo) continue;
+            await fs.rm(alvo, { recursive: true, force: true }).catch((erro) =>
+                console.error(`[Evento] Excluído o evento ${id}, mas ${alvo} ficou no disco:`, (erro as Error).message)
+            );
+        }
         return { ok: true };
     }
 }

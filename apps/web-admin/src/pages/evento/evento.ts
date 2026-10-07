@@ -6,6 +6,7 @@ import {
     criarFotografo,
     desvincularFotografo,
     editarEvento,
+    excluirEvento,
     listarFotografos,
     listarVinculos,
     obterEstacao,
@@ -82,6 +83,10 @@ function estadoInicial() {
         removendo: null as Vinculo | null,
         ocupadoFotografos: false,
         erroFotografos: "",
+        excluindo: false,
+        nomeConfirmacao: "",
+        ocupadoExclusao: false,
+        erroExclusao: "",
     };
 }
 
@@ -203,6 +208,35 @@ export const actions = {
 
     cancelarRemocao(): void {
         state.removendo = null;
+    },
+
+    abrirExclusao(): void {
+        Object.assign(state, { excluindo: true, nomeConfirmacao: "", erroExclusao: "" });
+    },
+
+    cancelarExclusao(): void {
+        if (!state.ocupadoExclusao) state.excluindo = false;
+    },
+
+    // Igual ao nome, sem os espaços das pontas: colar o nome com um espaço a mais ainda vale.
+    nomeConfere(): boolean {
+        return !!state.evento && state.nomeConfirmacao.trim() === state.evento.nome.trim();
+    },
+
+    // true quando excluiu: a tela sai da página do evento, que não existe mais.
+    async excluir(): Promise<boolean> {
+        if (!state.evento || state.ocupadoExclusao || !actions.nomeConfere()) return false;
+        Object.assign(state, { ocupadoExclusao: true, erroExclusao: "" });
+        try {
+            await excluirEvento(state.evento.id_evento, state.nomeConfirmacao.trim());
+            state.excluindo = false;
+            return true;
+        } catch (erro) {
+            state.erroExclusao = mensagem(erro, "Não conseguimos excluir o evento.");
+            return false;
+        } finally {
+            state.ocupadoExclusao = false;
+        }
     },
 
     async confirmarRemocao(): Promise<void> {

@@ -45,11 +45,13 @@ interface LinhaFotoEstacao {
     caminho_original: string | null;
 }
 
-async function garantirRegistro(conexao: ConexaoPostgres, dados: DadosProcessarFoto): Promise<LinhaFotoEstacao> {
+// Sem o evento (excluído enquanto a foto esperava na fila) não há registro: o job termina.
+async function garantirRegistro(conexao: ConexaoPostgres, dados: DadosProcessarFoto): Promise<LinhaFotoEstacao | undefined> {
     await conexao.executeParamCount(
         `INSERT INTO foto (id_evento, id_evento_fotografo, hash_arquivo, nome_arquivo, etapa)
-         VALUES (?, ?, ?, ?, 'registrada') ON CONFLICT (id_evento, hash_arquivo) DO NOTHING`,
-        [dados.id_evento, dados.id_evento_fotografo, dados.hash_arquivo, dados.nome_arquivo]
+         SELECT ?, ?, ?, ?, 'registrada' WHERE EXISTS (SELECT 1 FROM evento WHERE id_evento = ?)
+         ON CONFLICT (id_evento, hash_arquivo) DO NOTHING`,
+        [dados.id_evento, dados.id_evento_fotografo, dados.hash_arquivo, dados.nome_arquivo, dados.id_evento]
     );
     const [linha] = await conexao.queryParam<LinhaFotoEstacao>(
         "SELECT id_foto, etapa, caminho_original FROM foto WHERE id_evento = ? AND hash_arquivo = ?",
@@ -183,6 +185,7 @@ export async function processarFoto(dados: DadosProcessarFoto): Promise<void> {
     await conexao.open();
     try {
         const registro = await garantirRegistro(conexao, dados);
+        if (!registro) return;
 
         let caminhoAtual = registro.caminho_original;
         let etapa = registro.etapa;

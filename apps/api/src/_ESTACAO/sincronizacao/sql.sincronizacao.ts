@@ -15,6 +15,11 @@ export async function listarEventosParaEstacao(conexao: ConexaoPostgres): Promis
     );
 }
 
+export async function listarEventosExcluidos(conexao: ConexaoPostgres): Promise<number[]> {
+    const linhas = await conexao.queryParam<{ id_evento: number }>("SELECT id_evento FROM evento_excluido ORDER BY id_evento");
+    return linhas.map((l) => l.id_evento);
+}
+
 export async function listarFotografosSync(conexao: ConexaoPostgres): Promise<LinhaFotografoSync[]> {
     return conexao.queryParam<LinhaFotografoSync>("SELECT id_fotografo, nome, telefone, deletado FROM fotografo");
 }

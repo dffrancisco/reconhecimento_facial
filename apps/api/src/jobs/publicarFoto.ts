@@ -43,7 +43,8 @@ export async function publicarFoto(dados: DadosPublicarFotoJob): Promise<void> {
             "SELECT id_foto, id_evento_fotografo, largura, altura, bytes_web, capturada_em, camera FROM foto WHERE id_evento = ? AND hash_arquivo = ?",
             [dados.id_evento, dados.hash_arquivo]
         );
-        if (!foto) throw new Error(`[PublicarFoto] foto não encontrada localmente: ${dados.id_evento}:${dados.hash_arquivo}`);
+        // Só some com a exclusão do evento: tentar de novo não a traria de volta.
+        if (!foto) return;
 
         const rostos = await conexao.queryParam<LinhaRostoLocal>("SELECT embedding, bbox, det_score, area_px FROM rosto WHERE id_foto = ?", [foto.id_foto]);
 

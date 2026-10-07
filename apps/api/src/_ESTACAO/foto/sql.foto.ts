@@ -9,6 +9,10 @@ export async function situacaoAtual(conexao: ConexaoPostgres, idEvento: number, 
     return linha?.situacao;
 }
 
+export async function eventoExiste(conexao: ConexaoPostgres, idEvento: number): Promise<boolean> {
+    return !!(await conexao.queryOneParam("SELECT 1 FROM evento WHERE id_evento = ?", [idEvento]));
+}
+
 export async function upsertFoto(conexao: ConexaoPostgres, dados: DadosPublicarFoto): Promise<number> {
     const [linha] = await conexao.queryParam<{ id_foto: number }>(
         `INSERT INTO foto (id_evento, id_evento_fotografo, hash_arquivo, largura, altura, bytes_web, capturada_em, camera, qtd_rostos, publicada_em, situacao)

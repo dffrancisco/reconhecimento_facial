@@ -1,6 +1,8 @@
 import { ConfigEvento, LinhaEvento, LinksEvento } from "./i.evento";
 
 const NOME_MAXIMO = 150;
+const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+const SLUG_MAXIMO = 80;
 const ORGANIZADOR_MAXIMO = 120;
 const DATA = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -9,6 +11,11 @@ function dataValida(valor: unknown): valor is string {
     if (typeof valor !== "string" || !DATA.test(valor)) return false;
     const d = new Date(`${valor}T12:00:00Z`);
     return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === valor;
+}
+
+// Também protege a exclusão: a pasta dos originais na estação é montada pelo slug.
+export function slugValido(slug: unknown): slug is string {
+    return typeof slug === "string" && SLUG.test(slug) && slug.length <= SLUG_MAXIMO;
 }
 
 export function validarNome(nome: unknown): string | null {

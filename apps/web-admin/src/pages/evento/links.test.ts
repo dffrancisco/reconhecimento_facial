@@ -22,6 +22,7 @@ function eventoFalso(parcial: Partial<Evento> = {}): Evento {
     return {
         id_evento: 7,
         nome: "Corrida da Serra",
+        qtd_fotos: 0,
         slug: "corrida-da-serra",
         tipo: "esportivo",
         privado: "N",

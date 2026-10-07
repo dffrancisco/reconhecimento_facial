@@ -29,7 +29,8 @@ export async function processarZip(dados: DadosZip): Promise<void> {
             "SELECT id_arquivo_zip, id_evento, id_busca, parte FROM arquivo_zip WHERE id_arquivo_zip = ?",
             [dados.id_arquivo_zip]
         );
-        if (!zip) throw new Error(`[Zip] arquivo_zip ${dados.id_arquivo_zip} não existe`);
+        // Só some com a exclusão do evento (o cascade leva o arquivo_zip): não há o que montar.
+        if (!zip) return;
 
         // ZIP do participante sai da busca dele; o do anfitrião (id_busca nulo), do evento inteiro.
         const fotos = zip.id_busca

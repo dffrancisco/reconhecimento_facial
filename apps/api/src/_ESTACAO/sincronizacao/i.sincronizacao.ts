@@ -44,4 +44,7 @@ export interface PayloadSincronizacao {
     eventos: LinhaEventoSync[];
     fotografos: LinhaFotografoSync[];
     vinculos: LinhaVinculoSync[];
+    // Todos, sempre: uma estação que ficou desligada semanas também precisa apagar a parte dela.
+    // Opcional porque um VPS de antes desta versão não manda.
+    eventos_excluidos?: number[];
 }

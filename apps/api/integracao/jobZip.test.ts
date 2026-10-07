@@ -140,6 +140,10 @@ describe("processarZip", () => {
     });
 });
 
+test("ZIP apagado junto com o evento: termina sem erro", async () => {
+    await processarZip({ id_arquivo_zip: 999_999_999 });
+});
+
 after(async () => {
     await conexao?.close();
     await fecharFila();

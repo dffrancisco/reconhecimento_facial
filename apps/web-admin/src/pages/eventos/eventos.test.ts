@@ -11,7 +11,7 @@ vi.mock("./services/eventos.service", () => ({ listarEventos: vi.fn() }));
 const serra: EventoDaLista = { id_evento: 7, nome: "Corrida da Serra", slug: "corrida-da-serra", tipo: "esportivo", privado: "N", data_inicio: "2026-09-27", data_fim: "2026-09-27", ativo: "S" };
 const festa: EventoDaLista = { id_evento: 9, nome: "Festa da Bia", slug: "festa-da-bia", tipo: "social", privado: "S", data_inicio: "2026-10-10", data_fim: "2026-10-11", ativo: "N" };
 
-async function abrir() {
+async function abrir(endereco = "/") {
     const router = createRouter({
         history: createMemoryHistory(),
         routes: [
@@ -21,7 +21,7 @@ async function abrir() {
             { path: "/eventos/:id", component: { template: "<p>evento</p>" } },
         ],
     });
-    await router.push("/");
+    await router.push(endereco);
     const tela = mount(Eventos, { global: { plugins: [router] } });
     await flushPromises();
     return { tela, router };
@@ -72,5 +72,19 @@ describe("lista de eventos", () => {
 
         expect(localStorage.getItem("sessao_admin")).toBeNull();
         expect(router.currentRoute.value.path).toBe("/entrar");
+    });
+});
+
+describe("lista de eventos — depois de excluir", () => {
+    test("avisa uma vez que o evento foi excluído e tira o aviso do endereço", async () => {
+        const { tela, router } = await abrir("/?excluido=1");
+
+        expect(tela.text()).toContain("Evento excluído.");
+        expect(router.currentRoute.value.query.excluido).toBeUndefined();
+    });
+
+    test("sem ter excluído, não avisa nada", async () => {
+        const { tela } = await abrir();
+        expect(tela.text()).not.toContain("Evento excluído.");
     });
 });

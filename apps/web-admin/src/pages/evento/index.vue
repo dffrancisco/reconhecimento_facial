@@ -4,6 +4,7 @@ import { useRoute } from "vue-router";
 import Cabecalho from "../../componentes/Cabecalho.vue";
 import { periodo } from "../../ts/datas";
 import Dados from "./components/Dados.vue";
+import Excluir from "./components/Excluir.vue";
 import Fotografos from "./components/Fotografos.vue";
 import Links from "./components/Links.vue";
 import { actions, state } from "./evento";
@@ -30,6 +31,7 @@ nextTick(() => actions.init(Number(rota.params.id)));
                 <Dados />
                 <Links />
                 <Fotografos />
+                <Excluir />
             </template>
         </div>
     </main>

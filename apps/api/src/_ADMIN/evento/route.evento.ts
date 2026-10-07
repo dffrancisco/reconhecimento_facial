@@ -8,12 +8,13 @@ import EventoCtrl from "./ctrl.evento";
 export default class Evento implements iRota {
     conexao = new ConexaoPostgres();
     private ctrl!: EventoCtrl;
+    private idOperador!: number;
 
     constructor(private contexto: iContexto) {}
 
     async init(): Promise<void> {
         await this.conexao.open();
-        await autorizarOperador(this.contexto, this.conexao);
+        this.idOperador = await autorizarOperador(this.contexto, this.conexao);
         this.ctrl = new EventoCtrl(this.conexao);
     }
 
@@ -41,5 +42,11 @@ export default class Evento implements iRota {
         const arquivo = req.files?.logo as UploadedFile | undefined;
         if (!req.body.id_evento || !arquivo) return { msg: "Campos id_evento e logo são obrigatórios", error: true };
         return this.ctrl.subirMarcaDagua(Number(req.body.id_evento), { data: arquivo.data, mimetype: arquivo.mimetype, size: arquivo.size });
+    }
+
+    async excluirEvento(req: Request) {
+        const { id_evento, nome_confirmacao } = req.body;
+        if (!id_evento || !nome_confirmacao) return { msg: "Campos id_evento e nome_confirmacao são obrigatórios", error: true };
+        return this.ctrl.excluirEvento(Number(id_evento), nome_confirmacao, this.idOperador);
     }
 }
