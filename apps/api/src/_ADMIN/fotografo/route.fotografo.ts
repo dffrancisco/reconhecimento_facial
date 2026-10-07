@@ -11,8 +11,8 @@ export default class Fotografo implements iRota {
     constructor(private contexto: iContexto) {}
 
     async init(): Promise<void> {
-        await autorizarOperador(this.contexto);
         await this.conexao.open();
+        await autorizarOperador(this.contexto, this.conexao);
         this.ctrl = new FotografoCtrl(this.conexao);
     }
 

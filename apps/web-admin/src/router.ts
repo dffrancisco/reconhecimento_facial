@@ -10,6 +10,7 @@ export function criarRouter(history: RouterHistory = createWebHashHistory()) {
             { path: "/", name: "eventos", component: () => import("./pages/eventos/index.vue") },
             { path: "/eventos/novo", name: "novo-evento", component: () => import("./pages/novo-evento/index.vue") },
             { path: "/eventos/:id(\\d+)", name: "evento", component: () => import("./pages/evento/index.vue") },
+            { path: "/usuarios", name: "usuarios", component: () => import("./pages/usuarios/index.vue") },
             { path: "/:qualquer(.*)*", redirect: "/" },
         ],
     });

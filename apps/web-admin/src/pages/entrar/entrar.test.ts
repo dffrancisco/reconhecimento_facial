@@ -30,7 +30,7 @@ beforeEach(() => {
 
 describe("entrar", () => {
     test("login certo guarda a sessão e abre a lista de eventos", async () => {
-        vi.mocked(login).mockResolvedValue({ token: "tok-novo", nome: "Ana" });
+        vi.mocked(login).mockResolvedValue({ token: "tok-novo", nome: "Ana", id_operador: 3 });
         const { tela, router } = await abrir();
 
         await tela.get("input[name=login]").setValue("ana");
@@ -39,7 +39,7 @@ describe("entrar", () => {
         await flushPromises();
 
         expect(login).toHaveBeenCalledWith("ana", "senha-dev-123");
-        expect(JSON.parse(localStorage.getItem("sessao_admin")!)).toEqual({ token: "tok-novo", nome: "Ana" });
+        expect(JSON.parse(localStorage.getItem("sessao_admin")!)).toEqual({ token: "tok-novo", nome: "Ana", id_operador: 3 });
         expect(router.currentRoute.value.path).toBe("/");
     });
 

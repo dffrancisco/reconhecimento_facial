@@ -30,7 +30,7 @@ async function abrir() {
 beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
-    entrarComo({ token: "tok", nome: "Ana" });
+    entrarComo({ token: "tok", nome: "Ana", id_operador: 1 });
     vi.mocked(listarEventos).mockResolvedValue([serra, festa]);
 });
 

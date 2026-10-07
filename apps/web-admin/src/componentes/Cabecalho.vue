@@ -15,6 +15,7 @@ function sairAgora(): void {
         <div class="flex items-center gap-4">
             <span><span class="selo mr-2"></span><b>Admin</b></span>
             <RouterLink to="/" class="apagado hover:underline">Eventos</RouterLink>
+            <RouterLink to="/usuarios" class="apagado hover:underline">Usuários</RouterLink>
         </div>
         <span v-if="sessao" class="apagado">
             {{ sessao.nome }} · <button type="button" class="underline" data-acao="sair" @click="sairAgora">Sair</button>

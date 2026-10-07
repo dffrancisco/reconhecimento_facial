@@ -1,4 +1,4 @@
-import { randomBytes, scrypt, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 
 const scryptAsync = promisify(scrypt);
@@ -20,4 +20,10 @@ export async function conferirSenha(senha: string, hashArmazenado: string): Prom
 
     const calculado = (await scryptAsync(senha, salt, TAMANHO_HASH)) as Buffer;
     return timingSafeEqual(calculado, esperado);
+}
+
+// Vai dentro do token: trocar a senha gera outro hash (o salt é novo) e, com ele, outra versão,
+// o que derruba as sessões abertas com a senha antiga. Curta porque só precisa diferenciar.
+export function versaoDaSenha(senhaHash: string): string {
+    return createHash("sha256").update(senhaHash).digest("hex").slice(0, 16);
 }

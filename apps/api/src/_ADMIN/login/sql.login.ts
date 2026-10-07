@@ -12,3 +12,9 @@ export async function buscarOperadorPorLogin(conexao: ConexaoPostgres, login: st
         [login]
     );
 }
+
+export async function buscarOperadorAtivo(conexao: ConexaoPostgres, idOperador: number): Promise<{ senha_hash: string } | undefined> {
+    return conexao.queryOneParam<{ senha_hash: string }>("SELECT senha_hash FROM operador WHERE id_operador = ? AND deletado = 'N'", [
+        idOperador,
+    ]);
+}

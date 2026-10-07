@@ -64,7 +64,7 @@ const valor = (tela: VueWrapper, seletor: string) => (tela.get(seletor).element 
 beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
-    entrarComo({ token: "tok", nome: "Ana" });
+    entrarComo({ token: "tok", nome: "Ana", id_operador: 1 });
     vi.mocked(obterEvento).mockResolvedValue(eventoFalso());
 });
 

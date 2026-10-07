@@ -25,8 +25,26 @@ describe("rotas protegidas", () => {
         expect(router.currentRoute.value.name).toBe("entrar");
     });
 
+    test("a tela de usuários também fica atrás da entrada", async () => {
+        sair();
+        const router = criarRouter(createMemoryHistory());
+
+        await router.push("/usuarios");
+
+        expect(router.currentRoute.value.name).toBe("entrar");
+    });
+
+    test("com sessão, /usuarios abre a tela de usuários", async () => {
+        entrarComo({ token: "tok", nome: "Ana", id_operador: 1 });
+        const router = criarRouter(createMemoryHistory());
+
+        await router.push("/usuarios");
+
+        expect(router.currentRoute.value.name).toBe("usuarios");
+    });
+
     test("a sessão que expira no meio de uma tela volta para a entrada", async () => {
-        entrarComo({ token: "tok", nome: "Ana" });
+        entrarComo({ token: "tok", nome: "Ana", id_operador: 1 });
         const router = criarRouter(createMemoryHistory());
         await router.push("/");
         mount(App, { global: { plugins: [router] } });

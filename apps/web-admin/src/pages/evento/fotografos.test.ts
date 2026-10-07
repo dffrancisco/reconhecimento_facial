@@ -61,7 +61,7 @@ async function abrir() {
 beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
-    entrarComo({ token: "tok", nome: "Ana" });
+    entrarComo({ token: "tok", nome: "Ana", id_operador: 1 });
     vi.mocked(obterEvento).mockResolvedValue(evento);
     vi.mocked(listarVinculos).mockResolvedValue([vinculoAna]);
     vi.mocked(listarFotografos).mockResolvedValue([ana, bruno]);

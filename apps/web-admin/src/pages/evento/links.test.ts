@@ -54,7 +54,7 @@ async function abrir() {
 beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
-    entrarComo({ token: "tok", nome: "Ana" });
+    entrarComo({ token: "tok", nome: "Ana", id_operador: 1 });
     vi.mocked(obterEvento).mockResolvedValue(eventoFalso());
     vi.mocked(obterEstacao).mockResolvedValue({
         painel: "http://192.168.100.18:8090/#/estacao",

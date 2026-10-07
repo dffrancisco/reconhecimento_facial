@@ -31,7 +31,7 @@ const marcado = (tela: VueWrapper, seletor: string) => (tela.get(seletor).elemen
 beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
-    entrarComo({ token: "tok", nome: "Ana" });
+    entrarComo({ token: "tok", nome: "Ana", id_operador: 1 });
 });
 
 describe("novo evento", () => {

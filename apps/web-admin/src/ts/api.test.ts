@@ -10,7 +10,7 @@ import { aviso, entrarComo, sessao } from "./sessao";
 beforeEach(() => {
     post.mockReset();
     localStorage.clear();
-    entrarComo({ token: "tok", nome: "Ana" });
+    entrarComo({ token: "tok", nome: "Ana", id_operador: 1 });
 });
 
 describe("chamar", () => {

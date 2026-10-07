@@ -3,6 +3,7 @@ import "../loadEnv";
 import { iniciarConfig } from "../services/config";
 import ConexaoPostgres, { fecharBanco } from "../db/conexaoPostgres";
 import { gerarHashSenha } from "../services/senha";
+import { normalizarLogin, validarLogin, validarSenha } from "../_ADMIN/operador/regras";
 
 export async function criarOperador(
     conexao: ConexaoPostgres,
@@ -71,17 +72,25 @@ async function main(): Promise<void> {
         process.exit(1);
     }
 
+    // As mesmas regras da tela de usuários do admin.
+    const erroLogin = validarLogin(login);
+    if (erroLogin) {
+        console.error(`[CriarOperador] ${erroLogin}`);
+        process.exit(1);
+    }
+
     iniciarConfig(process.env);
     const senha = await perguntarSenha("Senha: ");
-    if (senha.length < 8) {
-        console.error("[CriarOperador] A senha deve ter pelo menos 8 caracteres.");
+    const erroSenha = validarSenha(senha);
+    if (erroSenha) {
+        console.error(`[CriarOperador] ${erroSenha}`);
         process.exit(1);
     }
 
     const conexao = new ConexaoPostgres();
     await conexao.open();
     try {
-        const resultado = await criarOperador(conexao, nome, login, senha);
+        const resultado = await criarOperador(conexao, nome, normalizarLogin(login), senha);
         console.log(`[CriarOperador] Operador ${resultado.criado ? "criado" : "atualizado"}: id_operador=${resultado.id_operador}`);
     } finally {
         await conexao.close();

@@ -10,6 +10,7 @@ import ConexaoPostgres, { fecharBanco } from "../src/db/conexaoPostgres";
 import { config, iniciarConfig } from "../src/services/config";
 import { criarFila, fecharFila } from "../src/services/fila";
 import { gerarToken } from "../src/services/token";
+import { gerarHashSenha, versaoDaSenha } from "../src/services/senha";
 import per from "../src/services/per";
 import Painel from "../src/_PAINEL/painel/route.painel";
 import Upload from "../src/_FOTOGRAFO/upload/route.upload";
@@ -71,7 +72,15 @@ before(async () => {
         "INSERT INTO evento_fotografo (id_evento_fotografo, id_evento, id_fotografo, token_upload) VALUES (?, ?, ?, ?)",
         [idVinculo, idEvento, idFotografo, tokenUpload]
     );
-    sessao = gerarToken(1, config.operadorSegredo);
+    // A sessão é conferida no banco: o operador precisa existir na estação, como a sincronização deixaria.
+    const idOperador = await proximoId("operador", "id_operador");
+    const senhaHash = await gerarHashSenha("senha-do-painel");
+    await conexao.executeParamCount("INSERT INTO operador (id_operador, nome, login, senha_hash) VALUES (?, 'Painel', ?, ?)", [
+        idOperador,
+        `painel-${sufixo}`,
+        senhaHash,
+    ]);
+    sessao = gerarToken(idOperador, config.operadorSegredo, versaoDaSenha(senhaHash));
 
     const app = express();
     app.use(express.json());

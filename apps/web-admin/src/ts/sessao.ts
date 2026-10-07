@@ -3,6 +3,8 @@ import { ref } from "vue";
 export interface Sessao {
     token: string;
     nome: string;
+    // Quem está logado: a tela de usuários marca a própria linha e não oferece excluir a si mesmo.
+    id_operador: number;
 }
 
 const CHAVE = "sessao_admin";

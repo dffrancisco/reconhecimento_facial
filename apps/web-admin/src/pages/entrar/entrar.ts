@@ -17,7 +17,7 @@ export const actions = {
         state.entrando = true;
         try {
             const r = await login(state.usuario, state.senha);
-            entrarComo({ token: r.token, nome: r.nome });
+            entrarComo({ token: r.token, nome: r.nome, id_operador: r.id_operador });
             return true;
         } catch (erro) {
             state.erro = erro instanceof Error ? erro.message : "Não conseguimos entrar.";

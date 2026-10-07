@@ -59,7 +59,7 @@ test("login com senha certa devolve token válido", async () => {
 
     const corpo = res.chamadas.body as { token: string; nome: string; id_operador: number };
     assert.strictEqual(corpo.nome, "Operadora");
-    assert.strictEqual(conferirToken(corpo.token, config.operadorSegredo), corpo.id_operador);
+    assert.strictEqual(conferirToken(corpo.token, config.operadorSegredo)?.id_operador, corpo.id_operador);
 });
 
 test("login com senha errada devolve 422", async () => {

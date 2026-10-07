@@ -1,0 +1,37 @@
+@vps = http://localhost:3002
+@token = COLE_O_TOKEN_DO_LOGIN_AQUI
+
+### Listar os usuários ativos
+POST {{vps}}/api/admin/operador
+Content-Type: application/json
+Authorization: {{token}}
+
+{ "call": "listarOperadores" }
+
+### Criar (o login de um excluído traz aquele cadastro de volta)
+POST {{vps}}/api/admin/operador
+Content-Type: application/json
+Authorization: {{token}}
+
+{ "call": "criarOperador", "nome": "Ana Souza", "login": "ana", "senha": "senha-da-ana" }
+
+### Alterar nome e login (manda os dois sempre)
+POST {{vps}}/api/admin/operador
+Content-Type: application/json
+Authorization: {{token}}
+
+{ "call": "alterarOperador", "id_operador": 2, "nome": "Ana Paula Souza", "login": "ana.paula" }
+
+### Trocar a senha (a própria devolve um token novo)
+POST {{vps}}/api/admin/operador
+Content-Type: application/json
+Authorization: {{token}}
+
+{ "call": "trocarSenha", "id_operador": 2, "senha": "senha-nova-da-ana" }
+
+### Excluir
+POST {{vps}}/api/admin/operador
+Content-Type: application/json
+Authorization: {{token}}
+
+{ "call": "excluirOperador", "id_operador": 2 }
