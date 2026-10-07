@@ -226,30 +226,31 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # TEMPORÁRIO: fora do compose até o servidor ter o NVIDIA Container Toolkit (docs/deploy.md,
-  # passo 2). Pedir a placa sem ele derruba o deploy inteiro, e montar esta imagem (a maior de
-  # todas) fez o build morrer no meio. Sem ele, as fotos da estação esperam na etapa de rostos.
-  # Instalado o toolkit, descomente o serviço (com o bloco `deploy`) e faça o redeploy.
-  # vision-gpu:
-  #   build:
-  #     context: ./apps/vision-service
-  #     target: final
-  #     args:
-  #       ORT: onnxruntime-gpu[cuda,cudnn]==1.30.0
-  #   environment:
-  #     VISION_MODO: gpu
-  #     VISION_RAIZES: /data/originais
-  #   volumes:
-  #     - originais:/data/originais:ro
-  #     - cache-tensorrt:/cache/tensorrt
-  #   deploy:
-  #     resources:
-  #       reservations:
-  #         devices:
-  #           - driver: nvidia
-  #             count: 1
-  #             capabilities: [gpu]
-  #   restart: unless-stopped
+  vision-gpu:
+    build:
+      context: ./apps/vision-service
+      target: final
+      args:
+        ORT: onnxruntime-gpu[cuda,cudnn]==1.30.0
+    environment:
+      VISION_MODO: gpu
+      VISION_RAIZES: /data/originais
+      # A placa do servidor (RTX 3050) tem 6 GB. Com lote 8 o vision usa ~1 GB a menos que com 16,
+      # e a vazão é a mesma (docs/benchmark-vision.md, det_size 1024).
+      VISION_LOTE_MAX: "8"
+    volumes:
+      - originais:/data/originais:ro
+      - cache-tensorrt:/cache/tensorrt
+    # Exige o driver da NVIDIA e o NVIDIA Container Toolkit no servidor (docs/deploy.md, passo 2):
+    # sem eles o Docker recusa a placa e o deploy para no meio, com a parte pública fora do ar.
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
 
 volumes:
   pg-vps:

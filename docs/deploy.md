@@ -29,7 +29,15 @@ No terminal do servidor, rode:
 nvidia-smi
 ```
 
-Ele deve mostrar a placa. Se der "command not found" ou erro, falta o driver da NVIDIA: no Ubuntu, `sudo ubuntu-drivers install` e reinicie o servidor. A estação foi testada com o driver 580. Use esse ou um mais novo.
+Ele deve mostrar a placa. Se der "command not found", falta o driver da NVIDIA. No Ubuntu:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y nvidia-driver-580
+sudo reboot
+```
+
+O reboot derruba por alguns minutos tudo o que roda no servidor. Depois dele, o `nvidia-smi` tem que mostrar a placa. Se nem `lspci | grep -i nvidia` mostrar a placa, o sistema não a enxerga: é encaixe, energia ou BIOS (ou, numa máquina virtual, a placa não foi repassada a ela).
 
 Depois, confira se o Docker enxerga a placa:
 
@@ -37,7 +45,7 @@ Depois, confira se o Docker enxerga a placa:
 docker run --rm --gpus all ubuntu nvidia-smi
 ```
 
-Se der erro como `could not select device driver "" with capabilities: [[gpu]]`, falta o **NVIDIA Container Toolkit**. No Ubuntu:
+Se der erro como `could not select device driver "nvidia"` ou `no known GPU vendor found`, falta ligar o Docker à placa com o **NVIDIA Container Toolkit**. No Ubuntu:
 
 ```bash
 curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
@@ -46,10 +54,11 @@ curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-contai
   | sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
 sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit
 sudo nvidia-ctk runtime configure --runtime=docker
+sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
 sudo systemctl restart docker
 ```
 
-O `restart docker` derruba por alguns segundos tudo o que roda no servidor, inclusive o Coolify. Escolha uma hora sem evento.
+O `cdi generate` é o que faz o Docker 29 achar a placa. O `restart docker` derruba por alguns segundos tudo o que roda no servidor, inclusive o Coolify. Escolha uma hora sem evento.
 
 Rode de novo o `docker run --rm --gpus all ubuntu nvidia-smi`. Quando ele mostrar a placa, siga.
 
@@ -178,6 +187,8 @@ Evite o redeploy no meio de um evento: a estação para por alguns minutos. Nenh
 | Erro de certificado no navegador | O endereço tem dois níveis (`admin.foto.taap.com.br`)? Use um nível só. O modo da Cloudflare está em Full (strict)? |
 | O Coolify não emite o certificado | "Always Use HTTPS" ligado na Cloudflare. Desligue, ou deixe a nuvem cinza até o certificado sair e depois volte para laranja. |
 | O `vision-gpu` fica reiniciando | Abra os logs dele no Coolify. Se falar em CUDA, o Docker não enxerga a placa: refaça o passo 2. |
+| O deploy falha com `could not select device driver "nvidia"` e o site fica com erro 502 | O Docker do servidor não enxerga a placa (driver ou toolkit faltando): refaça o passo 2 e clique em **Redeploy**. |
+| O deploy falha no meio do build, sem mensagem de erro (às vezes com `exit code 255`) | O Coolify renovou a conexão com o servidor no meio de um build longo (o do `vision-gpu` leva uns 10 minutos quando monta do zero). O que está no ar não é afetado: clique em **Redeploy**. |
 | O painel da estação não aceita o login do operador | A estação ainda não sincronizou (espere 1 minuto). Se continuar, veja os logs do `worker-estacao` no Coolify. |
 | O admin diz que "a estação ainda não deu sinal" | O `worker-estacao` está parado ou com erro. Veja os logs dele. |
 | Fotos param em "Esperando publicar" | A estação não está conseguindo publicar na parte pública. Os logs do `worker-estacao` dizem o motivo. |
