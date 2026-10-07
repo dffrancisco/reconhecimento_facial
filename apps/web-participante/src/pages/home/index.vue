@@ -15,7 +15,7 @@ const capaCarregada = ref(false);
 </script>
 
 <template>
-    <main class="tela-largada relative isolate flex flex-col overflow-hidden px-6 py-8">
+    <main class="tela-largada relative isolate flex flex-col overflow-hidden px-6 py-8 lg:justify-center lg:px-16">
         <template v-if="state.evento?.capa">
             <img
                 data-capa
@@ -36,8 +36,10 @@ const capaCarregada = ref(false);
         </section>
 
         <template v-else-if="state.evento">
-            <!-- O nome grande é o elemento memorável: um número de peito, não um cartaz. -->
-            <section class="flex flex-1 flex-col justify-center">
+            <!-- O nome grande é o elemento memorável: um número de peito, não um cartaz.
+                 No celular os botões descem para perto do polegar; no computador ficam logo
+                 abaixo do nome, que é para onde o olho já está olhando. -->
+            <section class="flex flex-1 flex-col justify-center lg:flex-none">
                 <p class="rotulo">Suas fotos do evento</p>
                 <h1 class="display mt-3">{{ state.evento.nome }}</h1>
                 <p class="mt-4 text-sm text-white/90">
@@ -45,7 +47,7 @@ const capaCarregada = ref(false);
                 </p>
             </section>
 
-            <section class="flex flex-col gap-2 pb-2">
+            <section class="flex flex-col gap-2 pb-2 lg:mt-10 lg:max-w-sm">
                 <BotaoPilula v-if="state.tokenLembrado" @click="actions.irParaMinhasFotos()">
                     Minhas fotos ({{ state.qtdLembrada }})
                 </BotaoPilula>

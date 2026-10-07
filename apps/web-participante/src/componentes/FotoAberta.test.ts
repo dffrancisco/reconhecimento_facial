@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
+import { nextTick } from "vue";
 import FotoAberta from "./FotoAberta.vue";
 
 const voltou = () => new Promise((pronto) => window.addEventListener("popstate", pronto, { once: true }));
@@ -16,6 +17,7 @@ type Props = {
     podeCompartilhar: boolean;
     prontaParaCompartilhar?: number | null;
     temMais?: boolean;
+    total?: number;
 };
 
 // Desmontar a lista volta uma entrada no histórico, e esse popstate chega depois: cada
@@ -123,6 +125,117 @@ describe("FotoAberta", () => {
         const esperando = voltou();
 
         window.history.back();
+        await esperando;
+        await flushPromises();
+
+        expect(tela.emitted("fechar")).toBeTruthy();
+    });
+});
+
+describe("FotoAberta no computador", () => {
+    beforeEach(() => vi.stubGlobal("matchMedia", (consulta: string) => ({ matches: true, media: consulta })));
+    afterEach(() => vi.unstubAllGlobals());
+
+    const naTela = (tela: VueWrapper) => tela.get("[data-foto]").attributes("data-foto");
+    const teclar = async (tecla: string) => {
+        window.dispatchEvent(new KeyboardEvent("keydown", { key: tecla }));
+        await nextTick();
+    };
+
+    test("mostra uma foto por vez, já a que foi clicada na grade", () => {
+        const tela = abrir({ inicio: 1 });
+
+        expect(tela.findAll("[data-foto]")).toHaveLength(1);
+        expect(naTela(tela)).toBe("1");
+        expect(tela.find(`img[src='${fotos[1].web}']`).exists()).toBe(true);
+    });
+
+    test("a miniatura aparece na hora, enquanto a versão grande carrega", () => {
+        const tela = abrir({ inicio: 1 });
+        expect(tela.find(`img[src='${fotos[1].thumb}']`).exists()).toBe(true);
+    });
+
+    test("a seta da direita passa para a próxima foto", async () => {
+        const tela = abrir({ inicio: 0 });
+
+        await tela.get("[aria-label='Próxima foto']").trigger("click");
+
+        expect(naTela(tela)).toBe("1");
+    });
+
+    test("a seta da esquerda volta para a anterior", async () => {
+        const tela = abrir({ inicio: 2 });
+
+        await tela.get("[aria-label='Foto anterior']").trigger("click");
+
+        expect(naTela(tela)).toBe("1");
+    });
+
+    test("as setas do teclado também passam as fotos", async () => {
+        const tela = abrir({ inicio: 1 });
+
+        await teclar("ArrowRight");
+        expect(naTela(tela)).toBe("2");
+
+        await teclar("ArrowLeft");
+        await teclar("ArrowLeft");
+        expect(naTela(tela)).toBe("0");
+    });
+
+    test("na primeira foto não há seta para trás, e na última não há para frente", () => {
+        expect(abrir({ inicio: 0 }).find("[aria-label='Foto anterior']").exists()).toBe(false);
+        expect(abrir({ inicio: 2 }).find("[aria-label='Próxima foto']").exists()).toBe(false);
+    });
+
+    test("mostra em qual foto está, contando o total do evento quando ele vem", () => {
+        expect(abrir({ inicio: 1 }).text()).toContain("2 de 3");
+        expect(abrir({ inicio: 1, total: 120, temMais: true }).text()).toContain("2 de 120");
+    });
+
+    test("baixar leva a foto que está na tela", async () => {
+        const tela = abrir({ inicio: 0 });
+        await tela.get("[aria-label='Próxima foto']").trigger("click");
+
+        await tela.get("[aria-label='Baixar a foto 2']").trigger("click");
+
+        expect(tela.emitted("baixar")).toEqual([[1]]);
+    });
+
+    test("compartilhar, quando o navegador deixa, manda a foto da tela", async () => {
+        const tela = abrir({ inicio: 2, podeCompartilhar: true });
+
+        await tela.get("[aria-label='Compartilhar a foto 3']").trigger("click");
+
+        expect(tela.emitted("compartilhar")).toEqual([[2]]);
+    });
+
+    test("na última foto carregada, a seta pede mais e segue para a nova", async () => {
+        const tela = abrir({ inicio: 2, temMais: true });
+
+        await tela.get("[aria-label='Próxima foto']").trigger("click");
+        expect(tela.emitted("carregarMais")).toHaveLength(1);
+
+        await tela.setProps({ fotos: [...fotos, { id_foto: 4, thumb: "/arquivos/7/4_thumb.jpg", web: "/arquivos/7/4_web.jpg" }] });
+        expect(naTela(tela)).toBe("3");
+    });
+
+    test("Esc fecha e desfaz a entrada no histórico", async () => {
+        const tela = abrir();
+        const esperando = voltou();
+
+        await teclar("Escape");
+        await esperando;
+        await flushPromises();
+
+        expect(tela.emitted("fechar")).toBeTruthy();
+        expect(window.history.state?.fotoAberta).toBeFalsy();
+    });
+
+    test("a seta de voltar do canto fecha", async () => {
+        const tela = abrir();
+        const esperando = voltou();
+
+        await tela.get("[aria-label='Voltar']").trigger("click");
         await esperando;
         await flushPromises();
 

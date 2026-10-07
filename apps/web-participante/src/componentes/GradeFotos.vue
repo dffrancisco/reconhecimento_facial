@@ -10,7 +10,9 @@ function porcentagem(valor: number | undefined): string {
 </script>
 
 <template>
-    <div class="grid grid-cols-2 gap-1.5">
+    <!-- Mais colunas conforme a tela cresce: duas no computador seriam meia tela cada uma,
+         e a miniatura (400 px) esticada a esse tamanho fica borrada. -->
+    <div class="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4 lg:gap-2 xl:grid-cols-5">
         <button
             v-for="(foto, indice) in fotos"
             :key="foto.id_foto"

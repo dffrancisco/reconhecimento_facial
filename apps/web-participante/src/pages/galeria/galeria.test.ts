@@ -73,6 +73,24 @@ describe("galeria pública", () => {
         expect(state.acabou).toBe(true); // 1 < 60: última página
     });
 
+    test("o total do dia escolhido vai para o contador da foto aberta", async () => {
+        vi.mocked(getEvento).mockResolvedValue(eventoDoisDias);
+        await actions.init("correndo-com-elas", "");
+        expect(actions.totalDoDia()).toBe(2);
+
+        await actions.trocarDia("2026-09-27");
+
+        expect(actions.totalDoDia()).toBe(1);
+    });
+
+    test("com um dia só, o total é o do evento", async () => {
+        vi.mocked(getEvento).mockResolvedValue({ ...eventoDoisDias, dias: [{ dia: "2026-09-27", qtd: 3 }] });
+
+        await actions.init("correndo-com-elas", "");
+
+        expect(actions.totalDoDia()).toBe(3);
+    });
+
     test("evento sem foto nenhuma mostra o recado de 'ainda chegando'", async () => {
         vi.mocked(getEvento).mockResolvedValue({ ...eventoDoisDias, total_fotos: 0, dias: [] });
         vi.mocked(getGaleria).mockResolvedValue({ fotos: [] });

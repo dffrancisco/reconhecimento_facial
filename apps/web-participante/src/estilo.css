@@ -62,6 +62,7 @@
         font-size: 0.9rem;
         background: #fff;
         color: var(--largada-fim);
+        display: block;
         width: 100%;
     }
 
@@ -77,7 +78,18 @@
         font-size: 0.9rem;
         background: rgb(255 255 255 / 0.16);
         color: #fff;
+        display: block;
         width: 100%;
+    }
+
+    /* No computador a pílula com a largura da tela vira uma faixa de 1200 px: ali ela tem
+       tamanho de botão e fica no centro do que estiver em volta. */
+    @media (min-width: 64rem) {
+        .pilula,
+        .pilula-vazada {
+            max-width: 24rem;
+            margin-inline: auto;
+        }
     }
 
     /* Telas onde a foto manda (galeria, resultado, foto aberta): fundo sólido escuro,
@@ -105,6 +117,13 @@
         hyphens: auto;
         overflow-wrap: break-word;
         text-wrap: balance;
+    }
+
+    /* Na tela larga os 5.5rem do celular ficam tímidos para o elemento que marca a página. */
+    @media (min-width: 64rem) {
+        .display {
+            font-size: clamp(5.5rem, 8vw, 8rem);
+        }
     }
 
     /* Home: a foto do evento por baixo e o degradê a 90% por cima. A foto em cinza vira

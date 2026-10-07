@@ -80,6 +80,11 @@ export const actions = {
         }
     },
 
+    // Com um dia só não há dia ativo, e o único dia já é o evento inteiro.
+    totalDoDia(): number | undefined {
+        return (state.dias.find((d) => d.dia === state.diaAtivo) ?? state.dias[0])?.qtd;
+    },
+
     voltar(): void {
         router.push(state.entrada.chaveAcesso ? `/p/${state.entrada.chaveAcesso}` : `/e/${state.entrada.slug}`);
     },

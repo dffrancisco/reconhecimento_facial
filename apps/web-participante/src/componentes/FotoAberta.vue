@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { nextTick, onMounted, onUnmounted, reactive, ref } from "vue";
+import { telaDeComputador } from "../ts/aparelho";
 import BotaoVoltar from "./BotaoVoltar.vue";
+import FotoUmaPorVez from "./FotoUmaPorVez.vue";
 import type { FotoAbrivel } from "./interfaces";
 
 const props = withDefaults(
@@ -11,14 +13,18 @@ const props = withDefaults(
         prontaParaCompartilhar?: number | null;
         temMais?: boolean;
         carregando?: boolean;
+        // Fotos do evento (ou do dia) no servidor, para o "3 de 120" do computador.
+        total?: number;
     }>(),
-    { prontaParaCompartilhar: null, temMais: false, carregando: false },
+    { prontaParaCompartilhar: null, temMais: false, carregando: false, total: undefined },
 );
 const emit = defineEmits<{ fechar: []; baixar: [indice: number]; compartilhar: [indice: number]; carregarMais: [] }>();
 
 const lista = ref<HTMLElement | null>(null);
 const voltar = ref<InstanceType<typeof BotaoVoltar> | null>(null);
 const carregadas = reactive(new Set<number>());
+// Decidido ao abrir: no computador, uma foto por vez com setas; no celular e no tablet, a lista.
+const umaPorVez = telaDeComputador();
 
 // No Android o voltar (gesto ou botão) é o jeito natural de sair da tela cheia: uma entrada
 // própria no histórico faz ele fechar a lista, em vez de sair do resultado para a câmera.
@@ -57,6 +63,7 @@ onMounted(() => {
     history.pushState({ ...history.state, fotoAberta: true }, "");
     window.addEventListener("popstate", aoVoltar);
     window.addEventListener("keydown", aoTeclar);
+    if (umaPorVez) return;
     // Quem navega pelo teclado cai dentro da lista, não atrás dela.
     (voltar.value?.$el as HTMLElement | undefined)?.focus({ preventScroll: true });
     void irParaFotoTocada();
@@ -72,7 +79,21 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <div ref="lista" class="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-[var(--largada-foto)] text-white">
+    <FotoUmaPorVez
+        v-if="umaPorVez"
+        :fotos="fotos"
+        :inicio="inicio"
+        :pode-compartilhar="podeCompartilhar"
+        :pronta-para-compartilhar="prontaParaCompartilhar"
+        :tem-mais="temMais"
+        :carregando="carregando"
+        :total="total"
+        @fechar="fechar"
+        @baixar="(indice) => emit('baixar', indice)"
+        @compartilhar="(indice) => emit('compartilhar', indice)"
+        @carregar-mais="emit('carregarMais')"
+    />
+    <div v-else ref="lista" class="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-[var(--largada-foto)] text-white">
         <BotaoVoltar ref="voltar" variante="vidro" class="fixed left-3 top-[calc(env(safe-area-inset-top)+0.75rem)] z-10" @click="fechar" />
 
         <div class="mx-auto flex max-w-xl flex-col gap-3 px-3 pb-10 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
