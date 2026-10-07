@@ -1,0 +1,5 @@
+Participante (busca pela selfie)	https://foto.taap.com.br/#/p/<código do evento>
+Anfitrião (galeria do evento)	https://foto.taap.com.br/#/a/<código do anfitrião>
+Admin	https://fotoadmin.taap.com.br
+Painel da estação	https://fotoenvio.taap.com.br/#/estacao
+Fotógrafo (envio das fotos)	https://fotoenvio.taap.com.br/#/?t=<código do fotógrafo>
